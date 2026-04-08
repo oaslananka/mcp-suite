@@ -89,6 +89,8 @@ function createDatabaseMock() {
       createdAt: "2026-04-07T00:00:00.000Z",
     })),
     listConnections: vi.fn().mockReturnValue([{ id: "conn-1" }]),
+    deleteConnection: vi.fn().mockReturnValue(true),
+    deleteAllConnections: vi.fn().mockReturnValue(3),
     setFavoriteConnection: vi
       .fn()
       .mockImplementation((id: string, favorite: boolean) => ({ id, favorite })),
@@ -142,6 +144,8 @@ describe("registerHandlers", () => {
     const disconnect = registeredHandlers.get(IpcChannel.DisconnectServer);
     const getServerInfo = registeredHandlers.get(IpcChannel.GetServerInfo);
     const listConnections = registeredHandlers.get(IpcChannel.ListConnections);
+    const deleteConnection = registeredHandlers.get(IpcChannel.DeleteConnection);
+    const deleteAllConnections = registeredHandlers.get(IpcChannel.DeleteAllConnections);
     const setFavorite = registeredHandlers.get(IpcChannel.SetFavoriteConnection);
     const listTools = registeredHandlers.get(IpcChannel.ListTools);
     const callTool = registeredHandlers.get(IpcChannel.CallTool);
@@ -161,6 +165,8 @@ describe("registerHandlers", () => {
     );
     const info = await getServerInfo?.({});
     const connections = await listConnections?.({});
+    const deleted = await deleteConnection?.({}, "conn-1");
+    const deletedAll = await deleteAllConnections?.({});
     const favorite = await setFavorite?.({}, "conn-1", true);
     const tools = await listTools?.({});
     const toolResult = await callTool?.({}, "search", { q: "mcp" });
@@ -193,6 +199,10 @@ describe("registerHandlers", () => {
     );
     expect(info).toMatchObject({ connected: true });
     expect(connections).toEqual([{ id: "conn-1" }]);
+    expect(deleted).toEqual({ success: true });
+    expect(db.deleteConnection).toHaveBeenCalledWith("conn-1");
+    expect(deletedAll).toEqual({ success: true, deleted: 3 });
+    expect(db.deleteAllConnections).toHaveBeenCalled();
     expect(favorite).toEqual({ id: "conn-1", favorite: true });
     expect(tools).toEqual({ tools: [{ name: "search" }] });
     expect(toolResult).toEqual({
@@ -236,6 +246,7 @@ describe("registerHandlers", () => {
       stdout: {},
       stdin: {},
       kill: killMock,
+      on: vi.fn(),
     });
 
     const db = createDatabaseMock();
@@ -261,10 +272,55 @@ describe("registerHandlers", () => {
     const disconnected = await disconnect?.({});
 
     expect(connected).toMatchObject({ success: true });
-    expect(spawnMock).toHaveBeenCalledWith("node", ["server.js"], { env: process.env });
+    expect(spawnMock).toHaveBeenCalledWith(
+      "node",
+      ["server.js"],
+      expect.objectContaining({
+        env: expect.any(Object),
+        windowsHide: true,
+      })
+    );
     expect(StdioTransportMock).toHaveBeenCalled();
     expect(disconnected).toEqual({ success: true });
     expect(killMock).toHaveBeenCalled();
+  });
+
+  it("returns empty resources and prompts when server does not implement those methods", async () => {
+    const methodNotFound = Object.assign(new Error("Method not found"), { code: -32601 });
+    client.connect.mockResolvedValue({
+      serverInfo: { name: "Local", version: "1.0.0" },
+      capabilities: {},
+    });
+    client.listResources.mockRejectedValue(methodNotFound);
+    client.listPrompts.mockRejectedValue(methodNotFound);
+    spawnMock.mockReturnValue({
+      stdout: {},
+      stdin: {},
+      kill: killMock,
+      on: vi.fn(),
+    });
+
+    const db = createDatabaseMock();
+    const { registerHandlers, IpcChannel } = await loadHandlersModule();
+    registerHandlers(db as never, null);
+
+    const connect = registeredHandlers.get(IpcChannel.ConnectServer);
+    const listResources = registeredHandlers.get(IpcChannel.ListResources);
+    const listPrompts = registeredHandlers.get(IpcChannel.ListPrompts);
+
+    await connect?.(
+      {},
+      {
+        type: "stdio",
+        command: "node",
+        args: ["server.js"],
+        name: undefined,
+        url: undefined,
+      }
+    );
+
+    await expect(listResources?.({})).resolves.toEqual({ resources: [] });
+    await expect(listPrompts?.({})).resolves.toEqual({ prompts: [] });
   });
 
   it("returns structured errors when connection setup fails", async () => {

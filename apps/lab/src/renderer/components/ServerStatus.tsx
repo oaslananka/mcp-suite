@@ -18,26 +18,31 @@ export function ServerStatus({ status, connection, error }: ServerStatusProps): 
         </div>
         <strong>{connection?.name ?? "No active server"}</strong>
       </div>
-      <div style={styles.meta}>{connection ? `${connection.type.toUpperCase()} · ${connection.endpoint}` : "Connect an MCP server to inspect tools and prompts."}</div>
+      <div style={styles.meta}>
+        {connection
+          ? `${connection.type.toUpperCase()} · ${connection.endpoint}`
+          : "Connect an MCP server to inspect tools and prompts."}
+      </div>
       {error ? <div style={styles.error}>{error}</div> : null}
     </section>
   );
 }
 
 const statusPalettes = {
-  idle: { background: "#e2e8f0", text: "#334155", border: "#cbd5e1" },
-  connecting: { background: "#fef3c7", text: "#92400e", border: "#fcd34d" },
-  connected: { background: "#dcfce7", text: "#166534", border: "#86efac" },
-  error: { background: "#fee2e2", text: "#991b1b", border: "#fca5a5" },
+  idle: { background: "#e7edf6", text: "#243449", border: "#c9d7ec" },
+  connecting: { background: "#fef2d7", text: "#8c4b08", border: "#f7cf8a" },
+  connected: { background: "#dff7e8", text: "#0f6a3b", border: "#9ee2bb" },
+  error: { background: "#fee6e6", text: "#a51424", border: "#f6b7bd" },
 } as const;
 
 const styles = {
   card: {
     borderWidth: 1,
     borderStyle: "solid",
-    borderRadius: 16,
-    padding: 16,
-    background: "#ffffff",
+    borderRadius: 18,
+    padding: 18,
+    background: "rgba(255, 255, 255, 0.82)",
+    boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
     display: "grid",
     gap: 8,
   },
@@ -48,17 +53,17 @@ const styles = {
   },
   badge: {
     borderRadius: 999,
-    padding: "4px 10px",
-    fontSize: 12,
+    padding: "5px 10px",
+    fontSize: 11,
     fontWeight: 700,
-    letterSpacing: "0.06em",
+    letterSpacing: "0.08em",
   },
   meta: {
-    color: "#475569",
+    color: "#44557a",
     fontSize: 14,
   },
   error: {
-    color: "#b91c1c",
+    color: "#b7191f",
     fontSize: 13,
     fontWeight: 600,
   },

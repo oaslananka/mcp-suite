@@ -1,13 +1,16 @@
-import { app, BrowserWindow } from 'electron';
-import { autoUpdater } from 'electron-updater';
-import { join } from 'path';
-import { registerHandlers } from './ipc/handlers.js';
-import { IpcChannel } from './ipc/channels.js';
-import { LabDatabase } from './storage/db.js';
+import { app, BrowserWindow } from "electron";
+import { createRequire } from "node:module";
+import { join } from "path";
+import { registerHandlers } from "./ipc/handlers.js";
+import { IpcChannel } from "./ipc/channels.js";
+import { LabDatabase } from "./storage/db.js";
+
+const require = createRequire(import.meta.url);
+const { autoUpdater } = require("electron-updater") as typeof import("electron-updater");
 
 let mainWindow: BrowserWindow | null = null;
 let pendingDeepLink: string | null = null;
-const dbPath = join(app.getPath('userData'), 'lab.sqlite');
+const dbPath = join(app.getPath("userData"), "lab.sqlite");
 const db = new LabDatabase(dbPath);
 const gotLock = app.requestSingleInstanceLock();
 
@@ -20,11 +23,11 @@ function createWindow() {
     width: 1280,
     height: 800,
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: join(__dirname, "../preload/index.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
     },
-    title: "MCP Lab"
+    title: "MCP Lab",
   });
 
   if (pendingDeepLink) {
@@ -34,27 +37,27 @@ function createWindow() {
     });
   }
 
-  if (process.env['NODE_ENV'] === 'development' || !app.isPackaged) {
-    mainWindow.loadURL('http://localhost:5173');
+  if (process.env["NODE_ENV"] === "development" || !app.isPackaged) {
+    mainWindow.loadURL("http://localhost:5173");
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
+    mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
   }
 }
 
 app.whenReady().then(() => {
-  app.setAsDefaultProtocolClient('mcp-lab');
+  app.setAsDefaultProtocolClient("mcp-lab");
   registerHandlers(db, mainWindow);
   createWindow();
   configureAutoUpdater();
 
-  app.on('activate', () => {
+  app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
-app.on('second-instance', (_event, argv) => {
-  const deepLinkArg = argv.find((value) => value.startsWith('mcp-lab://'));
+app.on("second-instance", (_event, argv) => {
+  const deepLinkArg = argv.find((value) => value.startsWith("mcp-lab://"));
   if (deepLinkArg) {
     pendingDeepLink = deepLinkArg;
     mainWindow?.webContents.send(IpcChannel.DeepLinkOpened, deepLinkArg);
@@ -67,17 +70,17 @@ app.on('second-instance', (_event, argv) => {
   }
 });
 
-app.on('open-url', (event, url) => {
+app.on("open-url", (event, url) => {
   event.preventDefault();
   pendingDeepLink = url;
   mainWindow?.webContents.send(IpcChannel.DeepLinkOpened, url);
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
 });
 
-app.on('will-quit', () => {
+app.on("will-quit", () => {
   db.close();
 });
 
@@ -86,11 +89,11 @@ function configureAutoUpdater(): void {
     return;
   }
 
-  autoUpdater.on('update-available', (info) => {
+  autoUpdater.on("update-available", (info) => {
     mainWindow?.webContents.send(IpcChannel.UpdateAvailable, info);
   });
 
-  autoUpdater.on('update-downloaded', (info) => {
+  autoUpdater.on("update-downloaded", (info) => {
     mainWindow?.webContents.send(IpcChannel.UpdateDownloaded, info);
   });
 

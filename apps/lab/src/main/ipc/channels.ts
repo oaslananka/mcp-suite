@@ -3,6 +3,8 @@ export const IpcChannel = {
   DisconnectServer: "mcp:disconnect",
   GetServerInfo: "mcp:get-server-info",
   ListConnections: "lab:list-connections",
+  DeleteConnection: "lab:delete-connection",
+  DeleteAllConnections: "lab:delete-all-connections",
   SetFavoriteConnection: "lab:set-favorite-connection",
   ListTools: "mcp:list-tools",
   CallTool: "mcp:call-tool",

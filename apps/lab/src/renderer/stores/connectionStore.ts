@@ -1,5 +1,12 @@
 import { useSyncExternalStore } from "react";
-import { ConnectServerOptions, ConnectionRecord, PromptSummary, ResourceSummary, ServerInfoPayload, ToolSummary } from "../types.js";
+import type {
+  ConnectServerOptions,
+  ConnectionRecord,
+  PromptSummary,
+  ResourceSummary,
+  ServerInfoPayload,
+  ToolSummary,
+} from "../types.js";
 
 interface ConnectionState {
   status: "idle" | "connecting" | "connected" | "error";
@@ -78,7 +85,14 @@ export const connectionStore = {
       return;
     }
 
-    setState({ status: "idle", serverInfo: info, error: undefined, tools: [], resources: [], prompts: [] });
+    setState({
+      status: "idle",
+      serverInfo: info,
+      error: undefined,
+      tools: [],
+      resources: [],
+      prompts: [],
+    });
   },
   async connect(opts: ConnectServerOptions): Promise<void> {
     if (!window.labApi) {
@@ -115,7 +129,12 @@ export const connectionStore = {
     setState({
       status: "idle",
       error: undefined,
-      serverInfo: { connected: false, connection: undefined, capabilities: undefined, serverInfo: undefined },
+      serverInfo: {
+        connected: false,
+        connection: undefined,
+        capabilities: undefined,
+        serverInfo: undefined,
+      },
       tools: [],
       resources: [],
       prompts: [],
@@ -123,6 +142,14 @@ export const connectionStore = {
   },
   async toggleFavorite(connectionId: string, favorite: boolean): Promise<void> {
     await window.labApi?.setFavoriteConnection(connectionId, favorite);
+    await refreshSavedConnections();
+  },
+  async deleteConnection(connectionId: string): Promise<void> {
+    await window.labApi?.deleteConnection(connectionId);
+    await refreshSavedConnections();
+  },
+  async deleteAllConnections(): Promise<void> {
+    await window.labApi?.deleteAllConnections();
     await refreshSavedConnections();
   },
   async refreshCatalog(): Promise<void> {

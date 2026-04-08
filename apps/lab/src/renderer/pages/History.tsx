@@ -7,7 +7,7 @@ import { historyStore, useHistoryStore } from "../stores/historyStore.js";
 function toCurlSnippet(toolName: string, input: string): string {
   return [
     "curl -X POST http://localhost:3000/mcp/tools/call \\",
-    "  -H \"Content-Type: application/json\" \\",
+    '  -H "Content-Type: application/json" \\',
     `  -d '${JSON.stringify({ name: toolName, arguments: JSON.parse(input || "{}") }, null, 2)}'`,
   ].join("\n");
 }
@@ -33,7 +33,7 @@ export function HistoryPage(): JSX.Element {
   const exports = useMemo(() => {
     if (!selectedEntry) {
       return {
-        json: "{\n  \"status\": \"No history\"\n}",
+        json: '{\n  "status": "No history"\n}',
         curl: "# No history",
         pipeline: "# No history",
       };
@@ -61,7 +61,11 @@ export function HistoryPage(): JSX.Element {
       <section style={styles.leftPanel}>
         <div style={styles.panelHeader}>
           <h2 style={styles.title}>History</h2>
-          <button type="button" style={styles.secondaryButton} onClick={() => void historyStore.hydrate()}>
+          <button
+            type="button"
+            style={styles.secondaryButton}
+            onClick={() => void historyStore.hydrate()}
+          >
             Refresh
           </button>
         </div>
@@ -79,14 +83,24 @@ export function HistoryPage(): JSX.Element {
             >
               <div style={styles.historyHeader}>
                 <strong>{entry.toolName}</strong>
-                <span style={{ ...styles.badge, background: entry.isError ? "#fee2e2" : "#dcfce7", color: entry.isError ? "#991b1b" : "#166534" }}>
+                <span
+                  style={{
+                    ...styles.badge,
+                    background: entry.isError ? "#fee2e2" : "#dcfce7",
+                    color: entry.isError ? "#991b1b" : "#166534",
+                  }}
+                >
                   {entry.isError ? "ERROR" : "OK"}
                 </span>
               </div>
-              <div style={styles.meta}>{entry.latencyMs} ms · {new Date(entry.createdAt).toLocaleString()}</div>
+              <div style={styles.meta}>
+                {entry.latencyMs} ms · {new Date(entry.createdAt).toLocaleString()}
+              </div>
             </button>
           ))}
-          {entries.length === 0 ? <div style={styles.empty}>No tool calls recorded yet.</div> : null}
+          {entries.length === 0 ? (
+            <div style={styles.empty}>No tool calls recorded yet.</div>
+          ) : null}
         </div>
       </section>
 
@@ -94,9 +108,18 @@ export function HistoryPage(): JSX.Element {
         <div style={styles.panelHeader}>
           <div>
             <h2 style={styles.title}>{selectedEntry?.toolName ?? "Select a call"}</h2>
-            <div style={styles.meta}>{selectedEntry ? `Connection ${selectedEntry.connectionId}` : "Pick a prior tool call to inspect or replay."}</div>
+            <div style={styles.meta}>
+              {selectedEntry
+                ? `Connection ${selectedEntry.connectionId}`
+                : "Pick a prior tool call to inspect or replay."}
+            </div>
           </div>
-          <button type="button" style={styles.primaryButton} disabled={!selectedEntry} onClick={() => void handleReplay()}>
+          <button
+            type="button"
+            style={styles.primaryButton}
+            disabled={!selectedEntry}
+            onClick={() => void handleReplay()}
+          >
             Replay
           </button>
         </div>
@@ -104,7 +127,12 @@ export function HistoryPage(): JSX.Element {
         <TraceViewer entries={entries} />
         <JsonEditor label="History Record" value={exports.json} readOnly height={220} />
         <JsonEditor label="Export as curl" value={exports.curl} readOnly height={180} />
-        <JsonEditor label="Export as Forge Pipeline" value={exports.pipeline} readOnly height={220} />
+        <JsonEditor
+          label="Export as Forge Pipeline"
+          value={exports.pipeline}
+          readOnly
+          height={220}
+        />
       </section>
     </div>
   );
@@ -152,7 +180,9 @@ const styles = {
     paddingRight: 4,
   },
   historyCard: {
-    border: "1px solid #dbe4f0",
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: "#dbe4f0",
     borderRadius: 14,
     padding: 14,
     background: "#fff",

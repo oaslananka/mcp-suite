@@ -51,16 +51,20 @@ Compared with one-off MCP utilities, the packages here are designed to compose: 
 
 ## Packages
 
-| Package | What it does | Docs |
-| --- | --- | --- |
-| `@oaslananka/shared` | Shared MCP protocol, transports, auth, retry, telemetry, and testing primitives | [Shared docs](./docs/packages/shared.md) |
-| `@oaslananka/forge` | Pipeline engine for orchestrating MCP tools and external steps | [Forge docs](./docs/packages/forge.md) |
-| `@oaslananka/sentinel` | Zero-trust security proxy with audit, approval, and PII controls | [Sentinel docs](./docs/packages/sentinel.md) |
-| `@oaslananka/atlas` | Registry API and catalog UI for discovering MCP servers | [Atlas docs](./docs/packages/atlas.md) |
-| `@oaslananka/composer` | Aggregation proxy for multiple backend MCP servers | [Composer docs](./docs/packages/composer.md) |
-| `@oaslananka/bridge` | OpenAPI and schema-first MCP server generation | [Bridge docs](./docs/packages/bridge.md) |
-| `@oaslananka/observatory` | Metrics, traces, anomaly detection, alerting, and dashboard UI | [Observatory docs](./docs/packages/observatory.md) |
-| `@oaslananka/lab` | Electron desktop workbench for connecting to and debugging MCP servers | [Lab docs](./docs/packages/lab.md) |
+| Package                   | What it does                                                                    | Docs                                               |
+| ------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `@oaslananka/shared`      | Shared MCP protocol, transports, auth, retry, telemetry, and testing primitives | [Shared docs](./docs/packages/shared.md)           |
+| `@oaslananka/forge`       | Pipeline engine for orchestrating MCP tools and external steps                  | [Forge docs](./docs/packages/forge.md)             |
+| `@oaslananka/sentinel`    | Zero-trust security proxy with audit, approval, and PII controls                | [Sentinel docs](./docs/packages/sentinel.md)       |
+| `@oaslananka/atlas`       | Registry API and catalog UI for discovering MCP servers                         | [Atlas docs](./docs/packages/atlas.md)             |
+| `@oaslananka/composer`    | Aggregation proxy for multiple backend MCP servers                              | [Composer docs](./docs/packages/composer.md)       |
+| `@oaslananka/bridge`      | OpenAPI and schema-first MCP server generation                                  | [Bridge docs](./docs/packages/bridge.md)           |
+| `@oaslananka/observatory` | Metrics, traces, anomaly detection, alerting, and dashboard UI                  | [Observatory docs](./docs/packages/observatory.md) |
+| `@oaslananka/lab`         | Electron desktop workbench for connecting to and debugging MCP servers          | [Lab docs](./docs/packages/lab.md)                 |
+
+### MCP Lab Screenshot
+
+![MCP Lab desktop screenshot](./assets/lab.png)
 
 ## Quick Start
 

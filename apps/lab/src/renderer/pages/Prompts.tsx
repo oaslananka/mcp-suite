@@ -7,7 +7,7 @@ export function PromptsPage(): JSX.Element {
   const { prompts, status } = useConnectionStore();
   const [selectedPrompt, setSelectedPrompt] = useState<string>();
   const [argsJson, setArgsJson] = useState("{\n  \n}");
-  const [resultJson, setResultJson] = useState("{\n  \"status\": \"Select a prompt\"\n}");
+  const [resultJson, setResultJson] = useState('{\n  "status": "Select a prompt"\n}');
 
   useEffect(() => {
     if (!selectedPrompt && prompts[0]) {
@@ -20,7 +20,7 @@ export function PromptsPage(): JSX.Element {
       return;
     }
 
-    const parsed = argsJson.trim() ? JSON.parse(argsJson) as Record<string, unknown> : {};
+    const parsed = argsJson.trim() ? (JSON.parse(argsJson) as Record<string, unknown>) : {};
     const result = await window.labApi?.getPrompt(selectedPrompt, parsed);
     setResultJson(JSON.stringify(result, null, 2));
   }
@@ -30,33 +30,48 @@ export function PromptsPage(): JSX.Element {
       <section style={styles.listPanel}>
         <div style={styles.panelHeader}>
           <h2 style={styles.title}>Prompts</h2>
-          <button type="button" style={styles.secondaryButton} onClick={() => void connectionStore.refreshCatalog()}>
+          <button
+            type="button"
+            style={styles.secondaryButton}
+            onClick={() => void connectionStore.refreshCatalog()}
+          >
             Refresh
           </button>
         </div>
 
         <div style={styles.promptList}>
-          {prompts.length === 0 ? <div style={styles.empty}>This server does not expose prompt templates.</div> : prompts.map((prompt) => (
-            <button
-              key={prompt.name}
-              type="button"
-              style={{
-                ...styles.promptCard,
-                ...(prompt.name === selectedPrompt ? styles.promptCardActive : {}),
-              }}
-              onClick={() => setSelectedPrompt(prompt.name)}
-            >
-              <strong>{prompt.name}</strong>
-              <span style={styles.description}>{prompt.description ?? "No description provided."}</span>
-            </button>
-          ))}
+          {prompts.length === 0 ? (
+            <div style={styles.empty}>This server does not expose prompt templates.</div>
+          ) : (
+            prompts.map((prompt) => (
+              <button
+                key={prompt.name}
+                type="button"
+                style={{
+                  ...styles.promptCard,
+                  ...(prompt.name === selectedPrompt ? styles.promptCardActive : {}),
+                }}
+                onClick={() => setSelectedPrompt(prompt.name)}
+              >
+                <strong>{prompt.name}</strong>
+                <span style={styles.description}>
+                  {prompt.description ?? "No description provided."}
+                </span>
+              </button>
+            ))
+          )}
         </div>
       </section>
 
       <section style={styles.viewerPanel}>
         <JsonEditor label="Arguments" value={argsJson} onChange={setArgsJson} height={220} />
         <div style={styles.actions}>
-          <button type="button" style={styles.primaryButton} disabled={status !== "connected" || !selectedPrompt} onClick={() => void handleRun()}>
+          <button
+            type="button"
+            style={styles.primaryButton}
+            disabled={status !== "connected" || !selectedPrompt}
+            onClick={() => void handleRun()}
+          >
             Render Prompt
           </button>
         </div>
@@ -104,7 +119,9 @@ const styles = {
     gap: 10,
   },
   promptCard: {
-    border: "1px solid #dbe4f0",
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: "#dbe4f0",
     borderRadius: 14,
     padding: 14,
     background: "#fff",

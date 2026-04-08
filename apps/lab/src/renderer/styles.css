@@ -1,0 +1,42 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;600;700&display=swap");
+
+:root {
+  --text-primary: #0e1a32;
+  --text-muted: #4b5a79;
+  --surface: rgba(255, 255, 255, 0.78);
+  --surface-strong: #ffffff;
+  --surface-border: #d7e2f4;
+  --brand-500: #0ea5e9;
+  --brand-600: #0284c7;
+  --brand-700: #0369a1;
+  --ok: #16a34a;
+  --warn: #d97706;
+  --danger: #dc2626;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  color: var(--text-primary);
+  font-family: "Space Grotesk", "Segoe UI", Tahoma, sans-serif;
+  background:
+    radial-gradient(circle at 85% -10%, rgba(14, 165, 233, 0.28) 0%, rgba(14, 165, 233, 0) 42%),
+    radial-gradient(circle at 12% 118%, rgba(249, 115, 22, 0.22) 0%, rgba(249, 115, 22, 0) 42%),
+    linear-gradient(160deg, #f4f7ff 0%, #eef3ff 58%, #f8fbff 100%);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}

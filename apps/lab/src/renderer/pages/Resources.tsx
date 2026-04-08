@@ -6,7 +6,7 @@ import { connectionStore, useConnectionStore } from "../stores/connectionStore.j
 export function ResourcesPage(): JSX.Element {
   const { resources, status } = useConnectionStore();
   const [selectedUri, setSelectedUri] = useState<string>();
-  const [content, setContent] = useState("{\n  \"status\": \"Select a resource\"\n}");
+  const [content, setContent] = useState('{\n  "status": "Select a resource"\n}');
 
   useEffect(() => {
     if (!selectedUri && resources[0]) {
@@ -25,27 +25,35 @@ export function ResourcesPage(): JSX.Element {
       <section style={styles.listPanel}>
         <div style={styles.panelHeader}>
           <h2 style={styles.title}>Resources</h2>
-          <button type="button" style={styles.secondaryButton} onClick={() => void connectionStore.refreshCatalog()}>
+          <button
+            type="button"
+            style={styles.secondaryButton}
+            onClick={() => void connectionStore.refreshCatalog()}
+          >
             Refresh
           </button>
         </div>
 
         <div style={styles.resourceList}>
-          {resources.length === 0 ? <div style={styles.empty}>No resources exposed by this server.</div> : resources.map((resource) => (
-            <button
-              key={resource.uri}
-              type="button"
-              style={{
-                ...styles.resourceCard,
-                ...(resource.uri === selectedUri ? styles.resourceCardActive : {}),
-              }}
-              onClick={() => void handleRead(resource.uri)}
-              disabled={status !== "connected"}
-            >
-              <strong>{resource.name ?? resource.uri}</strong>
-              <span style={styles.description}>{resource.description ?? resource.uri}</span>
-            </button>
-          ))}
+          {resources.length === 0 ? (
+            <div style={styles.empty}>No resources exposed by this server.</div>
+          ) : (
+            resources.map((resource) => (
+              <button
+                key={resource.uri}
+                type="button"
+                style={{
+                  ...styles.resourceCard,
+                  ...(resource.uri === selectedUri ? styles.resourceCardActive : {}),
+                }}
+                onClick={() => void handleRead(resource.uri)}
+                disabled={status !== "connected"}
+              >
+                <strong>{resource.name ?? resource.uri}</strong>
+                <span style={styles.description}>{resource.description ?? resource.uri}</span>
+              </button>
+            ))
+          )}
         </div>
       </section>
 
@@ -91,7 +99,9 @@ const styles = {
     gap: 10,
   },
   resourceCard: {
-    border: "1px solid #dbe4f0",
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: "#dbe4f0",
     borderRadius: 14,
     padding: 14,
     background: "#fff",

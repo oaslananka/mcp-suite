@@ -25,7 +25,9 @@ export function ToolCard({ selected, tool, onClick }: ToolCardProps): JSX.Elemen
 
 const styles = {
   card: {
-    border: "1px solid #dbe4f0",
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: "#dbe4f0",
     borderRadius: 14,
     padding: 14,
     background: "#fff",

@@ -72,6 +72,8 @@ export interface LabApi {
   disconnectServer: () => Promise<{ success: boolean }>;
   getServerInfo: () => Promise<ServerInfoPayload>;
   listConnections: () => Promise<ConnectionRecord[]>;
+  deleteConnection: (id: string) => Promise<{ success: boolean }>;
+  deleteAllConnections: () => Promise<{ success: boolean; deleted: number }>;
   setFavoriteConnection: (id: string, favorite: boolean) => Promise<ConnectionRecord | null>;
   listTools: () => Promise<{ tools: ToolSummary[] }>;
   callTool: (name: string, args: Record<string, unknown>) => Promise<ToolCallResponse>;

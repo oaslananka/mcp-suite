@@ -49,7 +49,7 @@ function AppLayout(): JSX.Element {
 
 export function App(): JSX.Element {
   return (
-    <HashRouter>
+    <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AppLayout />
     </HashRouter>
   );
@@ -58,39 +58,40 @@ export function App(): JSX.Element {
 const styles = {
   shell: {
     display: "grid",
-    gridTemplateColumns: "240px 1fr",
+    gridTemplateColumns: "272px 1fr",
     minHeight: "100vh",
-    background: "linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%)",
-    color: "#0f172a",
+    color: "#0e1a32",
   },
   content: {
-    padding: 24,
+    padding: "28px 30px",
     display: "grid",
     gridTemplateRows: "auto 1fr",
-    gap: 20,
+    gap: 24,
     minHeight: "100vh",
   },
   header: {
     display: "grid",
-    gridTemplateColumns: "1fr minmax(320px, 420px)",
-    gap: 20,
+    gridTemplateColumns: "1fr minmax(320px, 500px)",
+    gap: 24,
     alignItems: "start",
   },
   headerStatus: {
     alignSelf: "stretch",
   },
   eyebrow: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 700,
-    letterSpacing: "0.12em",
+    letterSpacing: "0.14em",
     textTransform: "uppercase" as const,
-    color: "#0369a1",
+    color: "#075985",
     marginBottom: 8,
   },
   title: {
     margin: 0,
-    fontSize: 34,
-    lineHeight: 1.1,
+    fontFamily: '"Fraunces", Georgia, serif',
+    fontSize: 46,
+    lineHeight: 1.05,
+    letterSpacing: "-0.01em",
   },
   main: {
     minHeight: 0,

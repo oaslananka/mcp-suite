@@ -58,7 +58,9 @@ export class LabDatabase {
 
   saveConnection(record: Omit<ConnectionRecord, "createdAt">): ConnectionRecord {
     const argsJson = JSON.stringify(record.args);
-    this.db.prepare(`
+    this.db
+      .prepare(
+        `
       INSERT INTO connections (id, name, type, endpoint, command, args_json, favorite)
       VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
@@ -68,15 +70,17 @@ export class LabDatabase {
         command = excluded.command,
         args_json = excluded.args_json,
         favorite = excluded.favorite
-    `).run(
-      record.id,
-      record.name,
-      record.type,
-      record.endpoint,
-      record.command ?? null,
-      argsJson,
-      record.favorite ? 1 : 0,
-    );
+    `
+      )
+      .run(
+        record.id,
+        record.name,
+        record.type,
+        record.endpoint,
+        record.command ?? null,
+        argsJson,
+        record.favorite ? 1 : 0
+      );
 
     const saved = this.findConnection(record.id);
     if (!saved) {
@@ -86,11 +90,15 @@ export class LabDatabase {
   }
 
   listConnections(): ConnectionRecord[] {
-    const rows = this.db.prepare(`
+    const rows = this.db
+      .prepare(
+        `
       SELECT id, name, type, endpoint, command, args_json, favorite, created_at
       FROM connections
       ORDER BY favorite DESC, created_at DESC
-    `).all() as Array<{
+    `
+      )
+      .all() as Array<{
       id: string;
       name: string;
       type: "stdio" | "http";
@@ -114,11 +122,15 @@ export class LabDatabase {
   }
 
   setFavoriteConnection(id: string, favorite: boolean): ConnectionRecord | null {
-    const result = this.db.prepare(`
+    const result = this.db
+      .prepare(
+        `
       UPDATE connections
       SET favorite = ?
       WHERE id = ?
-    `).run(favorite ? 1 : 0, id);
+    `
+      )
+      .run(favorite ? 1 : 0, id);
 
     if (result.changes === 0) {
       return null;
@@ -127,21 +139,52 @@ export class LabDatabase {
     return this.findConnection(id);
   }
 
+  deleteConnection(id: string): boolean {
+    const result = this.db
+      .prepare(
+        `
+      DELETE FROM connections
+      WHERE id = ?
+    `
+      )
+      .run(id);
+
+    return result.changes > 0;
+  }
+
+  deleteAllConnections(): number {
+    const result = this.db
+      .prepare(
+        `
+      DELETE FROM connections
+    `
+      )
+      .run();
+
+    return result.changes;
+  }
+
   findConnection(id: string): ConnectionRecord | null {
-    const row = this.db.prepare(`
+    const row = this.db
+      .prepare(
+        `
       SELECT id, name, type, endpoint, command, args_json, favorite, created_at
       FROM connections
       WHERE id = ?
-    `).get(id) as {
-      id: string;
-      name: string;
-      type: "stdio" | "http";
-      endpoint: string;
-      command: string | null;
-      args_json: string;
-      favorite: number;
-      created_at: string;
-    } | undefined;
+    `
+      )
+      .get(id) as
+      | {
+          id: string;
+          name: string;
+          type: "stdio" | "http";
+          endpoint: string;
+          command: string | null;
+          args_json: string;
+          favorite: number;
+          created_at: string;
+        }
+      | undefined;
 
     if (!row) {
       return null;
@@ -160,26 +203,34 @@ export class LabDatabase {
   }
 
   recordToolCall(record: ToolCallRecord): void {
-    this.db.prepare(`
+    this.db
+      .prepare(
+        `
       INSERT INTO tool_calls (connection_id, tool_name, input_json, output_json, latency_ms, is_error)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(
-      record.connectionId,
-      record.toolName,
-      record.input,
-      record.output,
-      record.latencyMs,
-      record.isError ? 1 : 0,
-    );
+    `
+      )
+      .run(
+        record.connectionId,
+        record.toolName,
+        record.input,
+        record.output,
+        record.latencyMs,
+        record.isError ? 1 : 0
+      );
   }
 
   listToolCalls(limit = 100): ToolCallHistoryRecord[] {
-    const rows = this.db.prepare(`
+    const rows = this.db
+      .prepare(
+        `
       SELECT id, connection_id, tool_name, input_json, output_json, latency_ms, is_error, created_at
       FROM tool_calls
       ORDER BY id DESC
       LIMIT ?
-    `).all(limit) as Array<{
+    `
+      )
+      .all(limit) as Array<{
       id: number;
       connection_id: string;
       tool_name: string;
@@ -213,7 +264,9 @@ export class LabDatabase {
   private parseArgs(raw: string): string[] {
     try {
       const parsed = JSON.parse(raw) as unknown;
-      return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [];
+      return Array.isArray(parsed)
+        ? parsed.filter((value): value is string => typeof value === "string")
+        : [];
     } catch {
       return [];
     }

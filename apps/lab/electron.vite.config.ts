@@ -1,26 +1,32 @@
-import { resolve } from 'node:path';
-import { defineConfig } from 'electron-vite';
-import react from '@vitejs/plugin-react';
+import { resolve } from "node:path";
+import { defineConfig } from "electron-vite";
+import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   main: {
     build: {
-      outDir: 'dist/main',
-    }
+      outDir: "dist/main",
+    },
   },
   preload: {
     build: {
-      outDir: 'dist/preload',
-    }
-  },
-  renderer: {
-    root: '.',
-    build: {
-      outDir: 'dist/renderer',
+      outDir: "dist/preload",
       rollupOptions: {
-        input: resolve(__dirname, 'index.html'),
+        output: {
+          format: "cjs",
+          entryFileNames: "index.cjs",
+        },
       },
     },
-    plugins: [react()]
-  }
+  },
+  renderer: {
+    root: ".",
+    build: {
+      outDir: "dist/renderer",
+      rollupOptions: {
+        input: resolve(__dirname, "index.html"),
+      },
+    },
+    plugins: [react()],
+  },
 });
