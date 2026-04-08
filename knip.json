@@ -2,63 +2,20 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "workspaces": {
     ".": {
-      "entry": [],
-      "ignoreDependencies": [
-        "turbo",
-        "husky",
-        "lint-staged"
-      ]
+      "entry": ["scripts/prepare-mcp-registry-publication.mjs"]
     },
     "packages/shared": {
-      "entry": [
-        "src/index.ts"
-      ]
+      "ignoreDependencies": ["pino-pretty"]
     },
-    "packages/forge": {
-      "entry": [
-        "src/index.ts",
-        "src/cli.ts"
-      ]
-    },
-    "packages/sentinel": {
-      "entry": [
-        "src/index.ts",
-        "src/cli.ts"
-      ]
-    },
-    "packages/atlas": {
-      "entry": [
-        "src/index.ts",
-        "src/cli.ts"
-      ]
-    },
-    "packages/composer": {
-      "entry": [
-        "src/index.ts",
-        "src/cli.ts"
-      ]
-    },
-    "packages/bridge": {
-      "entry": [
-        "src/index.ts",
-        "src/cli.ts"
-      ]
-    },
-    "packages/observatory": {
-      "entry": [
-        "src/index.ts",
-        "src/cli.ts"
-      ]
-    },
+    "packages/forge": {},
+    "packages/sentinel": {},
+    "packages/atlas": {},
+    "packages/composer": {},
+    "packages/bridge": {},
+    "packages/observatory": {},
     "apps/lab": {
-      "entry": [
-        "src/main/index.ts",
-        "src/renderer/main.tsx"
-      ]
+      "entry": ["src/preload/index.ts", "electron-builder.config.ts", "electron.vite.config.ts"]
     }
   },
-  "ignoreBinaries": [
-    "electron-builder"
-  ],
   "ignoreExportsUsedInFile": true
 }

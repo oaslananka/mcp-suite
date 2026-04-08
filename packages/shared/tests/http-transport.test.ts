@@ -2,187 +2,229 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StreamableHTTPTransport } from "../src/transport/http.js";
 
 function createSseResponse(chunks: string[]): Response {
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-            for (const chunk of chunks) {
-                controller.enqueue(encoder.encode(chunk));
-            }
-            controller.close();
-        },
-    });
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(encoder.encode(chunk));
+      }
+      controller.close();
+    },
+  });
 
-    return new Response(stream, {
-        status: 200,
-        headers: { "content-type": "text/event-stream" },
-    });
+  return new Response(stream, {
+    status: 200,
+    headers: { "content-type": "text/event-stream" },
+  });
 }
 
 function createOpenSseResponse(): { response: Response; close: () => void } {
-    let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
-    const stream = new ReadableStream<Uint8Array>({
-        start(ctrl) {
-            controller = ctrl;
-        },
-    });
+  let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
+  const stream = new ReadableStream<Uint8Array>({
+    start(ctrl) {
+      controller = ctrl;
+    },
+  });
 
-    return {
-        response: new Response(stream, {
-            status: 200,
-            headers: { "content-type": "text/event-stream" },
-        }),
-        close: () => controller?.close(),
-    };
+  return {
+    response: new Response(stream, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    }),
+    close: () => controller?.close(),
+  };
 }
 
 async function flushMicrotasks(): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 describe("StreamableHTTPTransport", () => {
-    const originalFetch = globalThis.fetch;
+  const originalFetch = globalThis.fetch;
 
-    beforeEach(() => {
-        vi.restoreAllMocks();
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.useRealTimers();
+  });
+
+  it("opens the SSE stream, emits parsed messages, and sends JSON-RPC POST requests", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        createSseResponse(['data: {"jsonrpc":"2.0","id":"1","result":{"ok":true}}\n\n'])
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 202, statusText: "Accepted" }));
+
+    globalThis.fetch = fetchMock;
+
+    const transport = new StreamableHTTPTransport({
+      url: "http://localhost:4001",
+      headers: { authorization: "Bearer token" },
+      reconnect: false,
     });
 
-    afterEach(() => {
-        globalThis.fetch = originalFetch;
-        vi.useRealTimers();
+    const messages: unknown[] = [];
+    const closes: number[] = [];
+
+    transport.on("message", (message) => messages.push(message));
+    transport.on("close", () => {
+      closes.push(Date.now());
     });
 
-    it("opens the SSE stream, emits parsed messages, and sends JSON-RPC POST requests", async () => {
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValueOnce(
-                createSseResponse([
-                    "data: {\"jsonrpc\":\"2.0\",\"id\":\"1\",\"result\":{\"ok\":true}}\n\n",
-                ]),
-            )
-            .mockResolvedValueOnce(new Response(null, { status: 202, statusText: "Accepted" }));
+    await transport.start();
+    await flushMicrotasks();
 
-        globalThis.fetch = fetchMock;
+    expect(messages).toEqual([expect.objectContaining({ id: "1", result: { ok: true } })]);
 
-        const transport = new StreamableHTTPTransport({
-            url: "http://localhost:4001",
-            headers: { authorization: "Bearer token" },
-            reconnect: false,
-        });
+    await transport.send({ jsonrpc: "2.0", method: "ping" });
 
-        const messages: unknown[] = [];
-        const closes: number[] = [];
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:4001/message",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          authorization: "Bearer token",
+          "Content-Type": "application/json",
+          "MCP-Protocol-Version": "2025-11-25",
+          "X-MCP-Session-ID": expect.any(String),
+        }),
+        body: JSON.stringify({ jsonrpc: "2.0", method: "ping" }),
+      })
+    );
+    expect(closes.length).toBeGreaterThan(0);
+  });
 
-        transport.on("message", (message) => messages.push(message));
-        transport.on("close", () => {
-            closes.push(Date.now());
-        });
+  it("emits parse errors for malformed SSE messages", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(createSseResponse(["data: not-json\n\n"]));
 
-        await transport.start();
-        await flushMicrotasks();
+    globalThis.fetch = fetchMock;
 
-        expect(messages).toEqual([
-            expect.objectContaining({ id: "1", result: { ok: true } }),
-        ]);
+    const transport = new StreamableHTTPTransport({
+      url: "http://localhost:4001",
+      reconnect: false,
+    });
+    const errors: string[] = [];
 
-        await transport.send({ jsonrpc: "2.0", method: "ping" });
-
-        expect(fetchMock).toHaveBeenNthCalledWith(
-            2,
-            "http://localhost:4001/message",
-            expect.objectContaining({
-                method: "POST",
-                headers: expect.objectContaining({
-                    authorization: "Bearer token",
-                    "Content-Type": "application/json",
-                    "MCP-Protocol-Version": "2025-11-25",
-                    "X-MCP-Session-ID": expect.any(String),
-                }),
-                body: JSON.stringify({ jsonrpc: "2.0", method: "ping" }),
-            }),
-        );
-        expect(closes.length).toBeGreaterThan(0);
+    transport.on("error", (error) => {
+      errors.push((error as Error).message);
     });
 
-    it("emits parse errors for malformed SSE messages", async () => {
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValue(createSseResponse(["data: not-json\n\n"]));
+    await transport.start();
+    await flushMicrotasks();
 
-        globalThis.fetch = fetchMock;
+    expect(errors).toEqual([expect.stringContaining("Parse error in SSE")]);
+  });
 
-        const transport = new StreamableHTTPTransport({
-            url: "http://localhost:4001",
-            reconnect: false,
-        });
-        const errors: string[] = [];
+  it("retries failed SSE connections with the configured backoff policy", async () => {
+    vi.useFakeTimers();
 
-        transport.on("error", (error) => {
-            errors.push((error as Error).message);
-        });
+    const openStream = createOpenSseResponse();
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new Error("network down"))
+      .mockResolvedValueOnce(openStream.response);
 
-        await transport.start();
-        await flushMicrotasks();
+    globalThis.fetch = fetchMock;
 
-        expect(errors).toEqual([expect.stringContaining("Parse error in SSE")]);
+    const transport = new StreamableHTTPTransport({
+      url: "http://localhost:4001",
+      reconnect: true,
+      maxReconnectAttempts: 3,
+      reconnectDelayMs: 5,
+      reconnectBackoffFactor: 2,
     });
 
-    it("retries failed SSE connections with the configured backoff policy", async () => {
-        vi.useFakeTimers();
+    const startPromise = transport.start();
+    await vi.advanceTimersByTimeAsync(5);
+    await startPromise;
 
-        const openStream = createOpenSseResponse();
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockRejectedValueOnce(new Error("network down"))
-            .mockResolvedValueOnce(openStream.response);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
-        globalThis.fetch = fetchMock;
+    openStream.close();
+    await transport.close();
+  });
 
-        const transport = new StreamableHTTPTransport({
-            url: "http://localhost:4001",
-            reconnect: true,
-            maxReconnectAttempts: 3,
-            reconnectDelayMs: 5,
-            reconnectBackoffFactor: 2,
-        });
+  it("emits an error when the connection cannot be re-established", async () => {
+    vi.useFakeTimers();
 
-        const startPromise = transport.start();
-        await vi.advanceTimersByTimeAsync(5);
-        await startPromise;
+    const fetchMock = vi.fn<typeof fetch>().mockRejectedValue(new Error("still down"));
 
-        expect(fetchMock).toHaveBeenCalledTimes(2);
+    globalThis.fetch = fetchMock;
 
-        openStream.close();
-        await transport.close();
+    const transport = new StreamableHTTPTransport({
+      url: "http://localhost:4001",
+      reconnect: true,
+      maxReconnectAttempts: 2,
+      reconnectDelayMs: 5,
     });
 
-    it("emits an error when the connection cannot be re-established", async () => {
-        vi.useFakeTimers();
-
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockRejectedValue(new Error("still down"));
-
-        globalThis.fetch = fetchMock;
-
-        const transport = new StreamableHTTPTransport({
-            url: "http://localhost:4001",
-            reconnect: true,
-            maxReconnectAttempts: 2,
-            reconnectDelayMs: 5,
-        });
-
-        const errors: string[] = [];
-        const closes: number[] = [];
-        transport.on("error", (error) => errors.push((error as Error).message));
-        transport.on("close", () => {
-            closes.push(Date.now());
-        });
-
-        const startPromise = transport.start();
-        await vi.advanceTimersByTimeAsync(5);
-        await startPromise;
-
-        expect(errors).toContain("still down");
-        expect(closes.length).toBeGreaterThan(0);
+    const errors: string[] = [];
+    const closes: number[] = [];
+    transport.on("error", (error) => errors.push((error as Error).message));
+    transport.on("close", () => {
+      closes.push(Date.now());
     });
+
+    const startPromise = transport.start();
+    await vi.advanceTimersByTimeAsync(5);
+    await startPromise;
+
+    expect(errors).toContain("still down");
+    expect(closes.length).toBeGreaterThan(0);
+  });
+
+  it("rejects invalid SSE responses, honors protocol overrides, and surfaces POST failures", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 200, statusText: "OK" }));
+
+    globalThis.fetch = fetchMock;
+
+    const transport = new StreamableHTTPTransport({
+      url: "http://localhost:4001",
+      reconnect: false,
+    });
+    transport.setProtocolVersion("2025-11-05");
+    transport.setReconnectPolicy({
+      enabled: false,
+      maxAttempts: 1,
+      delayMs: 1,
+      backoffFactor: 1,
+    });
+
+    const errors: string[] = [];
+    const closes: number[] = [];
+    transport.on("error", (error) => errors.push((error as Error).message));
+    transport.on("close", () => {
+      closes.push(Date.now());
+    });
+
+    await transport.start();
+    await flushMicrotasks();
+
+    expect(errors).toContain("Failed to connect to SSE: OK");
+    expect(closes.length).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:4001/sse",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Accept: "text/event-stream",
+          "MCP-Protocol-Version": "2025-11-05",
+        }),
+      })
+    );
+
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 500, statusText: "Nope" }));
+    await expect(transport.send({ jsonrpc: "2.0", method: "ping" })).rejects.toThrow(
+      "Failed to send HTTP message: Nope"
+    );
+  });
 });

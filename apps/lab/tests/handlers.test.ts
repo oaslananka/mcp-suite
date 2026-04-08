@@ -16,33 +16,59 @@ const client = vi.hoisted(() => ({
   listResources: vi.fn(),
   readResource: vi.fn(),
   listPrompts: vi.fn(),
-  getPrompt: vi.fn()
+  getPrompt: vi.fn(),
 }));
 const MCPClientMock = vi.hoisted(() =>
-  vi.fn().mockImplementation(() => client)
+  vi.fn(
+    class MockMCPClient {
+      constructor() {
+        return client;
+      }
+    }
+  )
 );
 const StreamableHTTPTransportMock = vi.hoisted(() =>
-  vi.fn().mockImplementation((options: unknown) => ({ kind: "http", options }))
+  vi.fn(
+    class MockStreamableHTTPTransport {
+      kind = "http";
+      options: unknown;
+
+      constructor(options: unknown) {
+        this.options = options;
+      }
+    }
+  )
 );
 const StdioTransportMock = vi.hoisted(() =>
-  vi.fn().mockImplementation((stdout: unknown, stdin: unknown) => ({ kind: "stdio", stdout, stdin }))
+  vi.fn(
+    class MockStdioTransport {
+      kind = "stdio";
+      stdout: unknown;
+      stdin: unknown;
+
+      constructor(stdout: unknown, stdin: unknown) {
+        this.stdout = stdout;
+        this.stdin = stdin;
+      }
+    }
+  )
 );
 
 vi.mock("electron", () => ({
   BrowserWindow: vi.fn(),
   ipcMain: {
-    handle: ipcHandle
-  }
+    handle: ipcHandle,
+  },
 }));
 
 vi.mock("child_process", () => ({
-  spawn: spawnMock
+  spawn: spawnMock,
 }));
 
 vi.mock("@oaslananka/shared", () => ({
   MCPClient: MCPClientMock,
   StdioTransport: StdioTransportMock,
-  StreamableHTTPTransport: StreamableHTTPTransportMock
+  StreamableHTTPTransport: StreamableHTTPTransportMock,
 }));
 
 async function loadHandlersModule() {
@@ -52,7 +78,7 @@ async function loadHandlersModule() {
   const channelsModule = await import("../src/main/ipc/channels.js");
   return {
     registerHandlers: handlersModule.registerHandlers,
-    IpcChannel: channelsModule.IpcChannel
+    IpcChannel: channelsModule.IpcChannel,
   };
 }
 
@@ -60,13 +86,15 @@ function createDatabaseMock() {
   return {
     saveConnection: vi.fn((connection) => ({
       ...connection,
-      createdAt: "2026-04-07T00:00:00.000Z"
+      createdAt: "2026-04-07T00:00:00.000Z",
     })),
     listConnections: vi.fn().mockReturnValue([{ id: "conn-1" }]),
-    setFavoriteConnection: vi.fn().mockImplementation((id: string, favorite: boolean) => ({ id, favorite })),
+    setFavoriteConnection: vi
+      .fn()
+      .mockImplementation((id: string, favorite: boolean) => ({ id, favorite })),
     recordToolCall: vi.fn(),
     listToolCalls: vi.fn().mockReturnValue([{ id: "call-1" }]),
-    listCollections: vi.fn().mockReturnValue([{ id: "collection-1" }])
+    listCollections: vi.fn().mockReturnValue([{ id: "collection-1" }]),
   };
 }
 
@@ -96,7 +124,7 @@ describe("registerHandlers", () => {
   it("registers HTTP session handlers and serves connected operations", async () => {
     client.connect.mockResolvedValue({
       serverInfo: { name: "Registry", version: "1.0.0" },
-      capabilities: { tools: {} }
+      capabilities: { tools: {} },
     });
     client.disconnect.mockResolvedValue(undefined);
     client.listTools.mockResolvedValue({ tools: [{ name: "search" }] });
@@ -127,7 +155,10 @@ describe("registerHandlers", () => {
     const stopMock = registeredHandlers.get(IpcChannel.StopMock);
     const getSettings = registeredHandlers.get(IpcChannel.GetSettings);
 
-    const connected = await connect?.({}, { type: "http", name: "Registry", url: "https://example.com" });
+    const connected = await connect?.(
+      {},
+      { type: "http", name: "Registry", url: "https://example.com" }
+    );
     const info = await getServerInfo?.({});
     const connections = await listConnections?.({});
     const favorite = await setFavorite?.({}, "conn-1", true);
@@ -148,7 +179,7 @@ describe("registerHandlers", () => {
     expect(ipcHandle).toHaveBeenCalled();
     expect(connected).toMatchObject({
       success: true,
-      serverInfo: { name: "Registry", version: "1.0.0" }
+      serverInfo: { name: "Registry", version: "1.0.0" },
     });
     expect(StreamableHTTPTransportMock).toHaveBeenCalledWith({ url: "https://example.com" });
     expect(db.saveConnection).toHaveBeenCalledWith(
@@ -157,7 +188,7 @@ describe("registerHandlers", () => {
         name: "Registry",
         type: "http",
         endpoint: "https://example.com",
-        favorite: false
+        favorite: false,
       })
     );
     expect(info).toMatchObject({ connected: true });
@@ -166,12 +197,12 @@ describe("registerHandlers", () => {
     expect(tools).toEqual({ tools: [{ name: "search" }] });
     expect(toolResult).toEqual({
       result: { isError: false, content: [{ type: "text", text: "ok" }] },
-      latency: expect.any(Number)
+      latency: expect.any(Number),
     });
     expect(db.recordToolCall).toHaveBeenCalledWith(
       expect.objectContaining({
         toolName: "search",
-        isError: false
+        isError: false,
       })
     );
     expect(resources).toEqual({ resources: [{ uri: "resource://docs" }] });
@@ -180,7 +211,7 @@ describe("registerHandlers", () => {
     expect(prompt).toEqual({ name: "review", messages: [] });
     expect(client.getPrompt).toHaveBeenCalledWith("review", {
       limit: "2",
-      exact: "true"
+      exact: "true",
     });
     expect(history).toEqual([{ id: "call-1" }]);
     expect(collections).toEqual([{ id: "collection-1" }]);
@@ -188,7 +219,7 @@ describe("registerHandlers", () => {
     expect(mockStop).toEqual({ success: true });
     expect(settings).toEqual({
       theme: "system",
-      activeConnectionId: expect.any(String)
+      activeConnectionId: expect.any(String),
     });
     expect(disconnected).toEqual({ success: true });
     expect(client.disconnect).toHaveBeenCalled();
@@ -198,13 +229,13 @@ describe("registerHandlers", () => {
   it("supports stdio transport and returns helpful failures for invalid states", async () => {
     client.connect.mockResolvedValue({
       serverInfo: { name: "Local", version: "1.0.0" },
-      capabilities: {}
+      capabilities: {},
     });
     client.disconnect.mockResolvedValue(undefined);
     spawnMock.mockReturnValue({
       stdout: {},
       stdin: {},
-      kill: killMock
+      kill: killMock,
     });
 
     const db = createDatabaseMock();
@@ -217,13 +248,16 @@ describe("registerHandlers", () => {
 
     await expect(callTool?.({}, "search", { q: "mcp" })).rejects.toThrow("Not connected");
 
-    const connected = await connect?.({}, {
-      type: "stdio",
-      command: "node",
-      args: ["server.js"],
-      name: undefined,
-      url: undefined
-    });
+    const connected = await connect?.(
+      {},
+      {
+        type: "stdio",
+        command: "node",
+        args: ["server.js"],
+        name: undefined,
+        url: undefined,
+      }
+    );
     const disconnected = await disconnect?.({});
 
     expect(connected).toMatchObject({ success: true });
@@ -241,17 +275,20 @@ describe("registerHandlers", () => {
     registerHandlers(db as never, null);
 
     const connect = registeredHandlers.get(IpcChannel.ConnectServer);
-    const result = await connect?.({}, {
-      type: "http",
-      name: "Broken",
-      url: "https://broken.example.com",
-      command: undefined,
-      args: undefined
-    });
+    const result = await connect?.(
+      {},
+      {
+        type: "http",
+        name: "Broken",
+        url: "https://broken.example.com",
+        command: undefined,
+        args: undefined,
+      }
+    );
 
     expect(result).toEqual({
       success: false,
-      error: "boom"
+      error: "boom",
     });
   });
 });

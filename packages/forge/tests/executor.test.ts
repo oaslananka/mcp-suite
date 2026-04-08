@@ -4,9 +4,9 @@ import { RunContext } from "../src/runtime/RunContext.js";
 const executeMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../src/engine/Step.js", () => ({
-  Step: vi.fn().mockImplementation(() => ({
-    execute: executeMock
-  }))
+  Step: class MockStep {
+    execute = executeMock;
+  },
 }));
 
 import { Executor } from "../src/engine/Executor.js";
@@ -18,7 +18,7 @@ function createContext(): RunContext {
     debug: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
-    child: vi.fn()
+    child: vi.fn(),
   } as never;
   return ctx;
 }
@@ -38,9 +38,9 @@ describe("Executor", () => {
               id,
               type: "log",
               message: "hello",
-              output_as: "announcement"
+              output_as: "announcement",
             }
-          : undefined
+          : undefined,
     };
     executeMock.mockResolvedValue({ status: "success", output: "hello" });
     const ctx = createContext();
@@ -58,8 +58,8 @@ describe("Executor", () => {
       getStep: () => ({
         id: "announce",
         type: "log",
-        message: "hello"
-      })
+        message: "hello",
+      }),
     };
     const ctx = createContext();
     const executor = new Executor({} as never, {} as never, true);
@@ -75,8 +75,8 @@ describe("Executor", () => {
       getStep: (id: string) => ({
         id,
         type: "log",
-        message: id
-      })
+        message: id,
+      }),
     };
     executeMock
       .mockResolvedValueOnce({ status: "success", output: "one" })
@@ -84,7 +84,9 @@ describe("Executor", () => {
     const ctx = createContext();
     const executor = new Executor({} as never, {} as never);
 
-    await expect(executor.execute(pipeline as never, ctx)).rejects.toThrow("Parallel step second failed: boom");
+    await expect(executor.execute(pipeline as never, ctx)).rejects.toThrow(
+      "Parallel step second failed: boom"
+    );
   });
 
   it("logs global errors through the run context logger", async () => {

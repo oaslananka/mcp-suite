@@ -20,6 +20,3 @@ export const IpcChannel = {
   UpdateDownloaded: "lab:update-downloaded",
   DeepLinkOpened: "lab:deep-link-opened",
 } as const;
-
-export type IpcChannelKey = typeof IpcChannel[keyof typeof IpcChannel];
-export const IPC = IpcChannel;
