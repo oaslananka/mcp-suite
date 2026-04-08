@@ -1,0 +1,64 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": [],
+      "ignoreDependencies": [
+        "turbo",
+        "husky",
+        "lint-staged"
+      ]
+    },
+    "packages/shared": {
+      "entry": [
+        "src/index.ts"
+      ]
+    },
+    "packages/forge": {
+      "entry": [
+        "src/index.ts",
+        "src/cli.ts"
+      ]
+    },
+    "packages/sentinel": {
+      "entry": [
+        "src/index.ts",
+        "src/cli.ts"
+      ]
+    },
+    "packages/atlas": {
+      "entry": [
+        "src/index.ts",
+        "src/cli.ts"
+      ]
+    },
+    "packages/composer": {
+      "entry": [
+        "src/index.ts",
+        "src/cli.ts"
+      ]
+    },
+    "packages/bridge": {
+      "entry": [
+        "src/index.ts",
+        "src/cli.ts"
+      ]
+    },
+    "packages/observatory": {
+      "entry": [
+        "src/index.ts",
+        "src/cli.ts"
+      ]
+    },
+    "apps/lab": {
+      "entry": [
+        "src/main/index.ts",
+        "src/renderer/main.tsx"
+      ]
+    }
+  },
+  "ignoreBinaries": [
+    "electron-builder"
+  ],
+  "ignoreExportsUsedInFile": true
+}

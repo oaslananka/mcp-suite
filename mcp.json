@@ -1,0 +1,71 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/registry/main/schema/registry-entry.schema.json",
+  "name": "mcp-suite",
+  "displayName": "MCP Infrastructure Suite",
+  "description": "Azure-first infrastructure for MCP ecosystems: shared protocol primitives, security proxying, orchestration, discovery, aggregation, generation, observability, and desktop tooling.",
+  "homepage": "https://github.com/oaslananka/mcp-suite",
+  "license": "Apache-2.0",
+  "specVersion": "2025-11-25",
+  "categories": [
+    "infrastructure",
+    "security",
+    "orchestration",
+    "observability"
+  ],
+  "packages": [
+    {
+      "name": "@oaslananka/sentinel",
+      "registry": "npm",
+      "role": "security-proxy",
+      "transport": [
+        "stdio"
+      ],
+      "entrypoint": "sentinel"
+    },
+    {
+      "name": "@oaslananka/composer",
+      "registry": "npm",
+      "role": "aggregator",
+      "transport": [
+        "stdio"
+      ],
+      "entrypoint": "composer"
+    },
+    {
+      "name": "@oaslananka/forge",
+      "registry": "npm",
+      "role": "orchestrator",
+      "transport": [
+        "http"
+      ],
+      "entrypoint": "forge"
+    },
+    {
+      "name": "@oaslananka/atlas",
+      "registry": "npm",
+      "role": "registry",
+      "transport": [
+        "http"
+      ],
+      "entrypoint": "atlas"
+    },
+    {
+      "name": "@oaslananka/bridge",
+      "registry": "npm",
+      "role": "generator",
+      "transport": [
+        "cli"
+      ],
+      "entrypoint": "bridge"
+    },
+    {
+      "name": "@oaslananka/observatory",
+      "registry": "npm",
+      "role": "observability",
+      "transport": [
+        "http"
+      ],
+      "entrypoint": "observatory"
+    }
+  ]
+}

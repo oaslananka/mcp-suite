@@ -1,0 +1,10 @@
+version: "3.8"
+
+services:
+  sentinel:
+    build:
+      context: ../..
+      dockerfile: ./packages/sentinel/Dockerfile
+    environment:
+      SENTINEL_DB_PATH: /app/data/sentinel.sqlite
+      SENTINEL_UPSTREAM_URL: http://host.docker.internal:3000/mcp

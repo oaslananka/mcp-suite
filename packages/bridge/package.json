@@ -1,0 +1,68 @@
+{
+  "name": "@oaslananka/bridge",
+  "version": "1.0.0",
+  "description": "Turn any OpenAPI/GraphQL/gRPC API into an MCP server",
+  "license": "Apache-2.0",
+  "author": "oaslananka <oaslananka@users.noreply.github.com>",
+  "homepage": "https://github.com/oaslananka/mcp-suite#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oaslananka/mcp-suite.git",
+    "directory": "packages/bridge"
+  },
+  "bugs": {
+    "url": "https://github.com/oaslananka/mcp-suite/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "bridge": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "keywords": [
+    "mcp",
+    "openapi",
+    "graphql",
+    "grpc",
+    "code-generation",
+    "model-context-protocol"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts src/cli.ts --format esm,cjs --dts --clean --tsconfig tsconfig.build.json",
+    "dev": "tsup src/index.ts src/cli.ts --format esm,cjs --watch --tsconfig tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@oaslananka/shared": "workspace:*",
+    "commander": "^12.1.0",
+    "graphql": "^16.9.0",
+    "handlebars": "^4.7.8",
+    "js-yaml": "^4.1.0",
+    "node-fetch": "^3.3.2",
+    "pino": "^9.3.0",
+    "protobufjs": "^7.3.0",
+    "swagger-parser": "^10.0.3",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/js-yaml": "^4.0.9",
+    "rimraf": "^6.0.1",
+    "tsup": "^8.2.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.9"
+  }
+}

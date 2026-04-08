@@ -1,0 +1,39 @@
+name: "@oaslananka/bridge"
+displayName: "MCP Bridge"
+description: |
+  Turn any OpenAPI 3.x, GraphQL, or gRPC API into a fully-functional MCP server
+  in seconds. Point Bridge at a spec URL or file and get a ready-to-run
+  TypeScript MCP server with typed tool definitions and error handling.
+homepage: "https://github.com/oaslananka/mcp-suite/tree/main/packages/bridge"
+license: "Apache-2.0"
+categories:
+  - generator
+  - code-generation
+  - infrastructure
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required: ["specUrl"]
+    properties:
+      specUrl:
+        type: string
+        description: "URL or file path to an OpenAPI 3.x spec"
+        examples: ["https://petstore3.swagger.io/api/v3/openapi.json", "./api.yaml"]
+      serverName:
+        type: string
+        description: "Name for the generated MCP server"
+        default: "bridge-server"
+      baseUrl:
+        type: string
+        description: "Override the base URL from the spec"
+  commandFunction: |
+    (config) => ({
+      command: "npx",
+      args: [
+        "-y", "@oaslananka/bridge", "run",
+        "--spec", config.specUrl,
+        "--name", config.serverName ?? "bridge-server",
+        ...(config.baseUrl ? ["--base-url", config.baseUrl] : [])
+      ]
+    })

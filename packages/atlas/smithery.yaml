@@ -1,0 +1,40 @@
+name: "@oaslananka/atlas"
+displayName: "MCP Atlas"
+description: |
+  Discovery registry and catalog for MCP servers.
+  Search, compare, score, and install any MCP server from a curated catalog
+  of 30+ verified entries. Ships with a REST API and a lightweight web UI.
+homepage: "https://github.com/oaslananka/mcp-suite/tree/main/packages/atlas"
+license: "Apache-2.0"
+categories:
+  - registry
+  - discovery
+  - infrastructure
+startCommand:
+  type: http
+  configSchema:
+    type: object
+    required: []
+    properties:
+      port:
+        type: number
+        description: "Port for the Atlas registry API"
+        default: 4003
+      dbPath:
+        type: string
+        description: "Path to the SQLite registry database"
+        default: "./data/atlas.sqlite"
+      seed:
+        type: boolean
+        description: "Seed the catalog with built-in entries on first run"
+        default: true
+  commandFunction: |
+    (config) => ({
+      command: "npx",
+      args: [
+        "-y", "@oaslananka/atlas", "serve",
+        "--port", String(config.port ?? 4003),
+        "--db", config.dbPath ?? "./data/atlas.sqlite",
+        ...(config.seed !== false ? ["--seed"] : [])
+      ]
+    })

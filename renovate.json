@@ -1,0 +1,36 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "schedule:weekly",
+    ":separateMajorReleases",
+    ":automergeMinor",
+    "group:allNonMajor"
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": [
+        "/^@opentelemetry\\//"
+      ],
+      "groupName": "OpenTelemetry packages",
+      "automerge": true
+    },
+    {
+      "matchPackageNames": [
+        "/^@types\\//"
+      ],
+      "groupName": "DefinitelyTyped packages",
+      "automerge": true
+    },
+    {
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "automerge": true
+    }
+  ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/dist/**"
+  ]
+}

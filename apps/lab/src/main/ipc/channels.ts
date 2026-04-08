@@ -1,0 +1,25 @@
+export const IpcChannel = {
+  ConnectServer: "mcp:connect",
+  DisconnectServer: "mcp:disconnect",
+  GetServerInfo: "mcp:get-server-info",
+  ListConnections: "lab:list-connections",
+  SetFavoriteConnection: "lab:set-favorite-connection",
+  ListTools: "mcp:list-tools",
+  CallTool: "mcp:call-tool",
+  ListResources: "mcp:list-resources",
+  ReadResource: "mcp:read-resource",
+  SubscribeResource: "mcp:subscribe-resource",
+  ListPrompts: "mcp:list-prompts",
+  GetPrompt: "mcp:get-prompt",
+  GetHistory: "lab:get-history",
+  ListCollections: "lab:list-collections",
+  StartMock: "lab:start-mock",
+  StopMock: "lab:stop-mock",
+  GetSettings: "lab:get-settings",
+  UpdateAvailable: "lab:update-available",
+  UpdateDownloaded: "lab:update-downloaded",
+  DeepLinkOpened: "lab:deep-link-opened",
+} as const;
+
+export type IpcChannelKey = typeof IpcChannel[keyof typeof IpcChannel];
+export const IPC = IpcChannel;

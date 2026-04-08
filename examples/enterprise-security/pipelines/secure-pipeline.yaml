@@ -1,0 +1,7 @@
+name: "secure-pipeline"
+version: "1.0.0"
+servers: {}
+steps:
+  - id: "collect"
+    type: "log"
+    message: "Security workflow initialized"

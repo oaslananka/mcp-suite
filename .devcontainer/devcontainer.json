@@ -1,0 +1,33 @@
+{
+  "name": "MCP Suite Dev",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "onCreateCommand": "npm install -g pnpm@10 turbo && pnpm install",
+  "postStartCommand": "pnpm build",
+  "forwardPorts": [
+    4001,
+    4002,
+    4003,
+    4004,
+    4006
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-azuretools.vscode-docker",
+        "vitest.explorer",
+        "orta.vscode-jest"
+      ],
+      "settings": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true,
+        "typescript.tsdk": "node_modules/typescript/lib"
+      }
+    }
+  }
+}

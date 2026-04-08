@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "ignoreDeprecations": "6.0"
+  },
+  "include": [
+    "packages/shared/src/**/*.ts",
+    "packages/forge/src/**/*.ts",
+    "packages/sentinel/src/**/*.ts",
+    "packages/atlas/src/**/*.ts",
+    "packages/composer/src/**/*.ts",
+    "packages/bridge/src/**/*.ts",
+    "packages/observatory/src/**/*.ts"
+  ],
+  "exclude": [
+    "**/*.test.ts",
+    "**/tests/**",
+    "**/dist/**",
+    "apps/**"
+  ]
+}

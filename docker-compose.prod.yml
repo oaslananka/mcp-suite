@@ -1,0 +1,91 @@
+services:
+  forge:
+    build:
+      context: .
+      dockerfile: ./packages/forge/Dockerfile
+    environment:
+      NODE_ENV: production
+      FORGE_DB_PATH: /app/data/forge.sqlite
+    ports:
+      - "4000:4000"
+    volumes:
+      - forge_data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then((response) => { if (!response.ok) process.exit(1); return response.json(); }).then((payload) => { if (payload.status !== 'ok') process.exit(1); }).catch(() => process.exit(1));"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  atlas:
+    build:
+      context: .
+      dockerfile: ./packages/atlas/Dockerfile
+    environment:
+      NODE_ENV: production
+      ATLAS_DB_PATH: /app/data/atlas.sqlite
+      ATLAS_PORT: 4003
+    ports:
+      - "4003:4003"
+    volumes:
+      - atlas_data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4003/health').then((response) => { if (!response.ok) process.exit(1); return response.json(); }).then((payload) => { if (payload.status !== 'ok') process.exit(1); }).catch(() => process.exit(1));"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  observatory:
+    build:
+      context: .
+      dockerfile: ./packages/observatory/Dockerfile
+    environment:
+      NODE_ENV: production
+      OBSERVATORY_DB_PATH: /app/data/observatory.sqlite
+      OBSERVATORY_PORT: 4006
+    ports:
+      - "4006:4006"
+    volumes:
+      - observatory_data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4006/health').then((response) => { if (!response.ok) process.exit(1); return response.json(); }).then((payload) => { if (payload.status !== 'ok') process.exit(1); }).catch(() => process.exit(1));"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  composer:
+    build:
+      context: .
+      dockerfile: ./packages/composer/Dockerfile
+    profiles: ["tooling"]
+    environment:
+      NODE_ENV: production
+      COMPOSER_CONFIG: /app/config/composer.yml
+    volumes:
+      - ./examples/quickstart/composer.yml:/app/config/composer.yml:ro
+
+  sentinel:
+    build:
+      context: .
+      dockerfile: ./packages/sentinel/Dockerfile
+    profiles: ["tooling"]
+    environment:
+      NODE_ENV: production
+      SENTINEL_DB_PATH: /app/data/sentinel.sqlite
+      SENTINEL_UPSTREAM_URL: http://host.docker.internal:4000/mcp
+    volumes:
+      - sentinel_data:/app/data
+
+  bridge:
+    build:
+      context: .
+      dockerfile: ./packages/bridge/Dockerfile
+    profiles: ["tooling"]
+
+volumes:
+  forge_data:
+  atlas_data:
+  observatory_data:
+  sentinel_data:

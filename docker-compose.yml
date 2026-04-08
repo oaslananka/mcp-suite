@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  forge:
+    build:
+      context: .
+      dockerfile: ./packages/forge/Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./packages/forge:/app/packages/forge
+      - sqlite_data:/app/data
+
+  sentinel:
+    build:
+      context: .
+      dockerfile: ./packages/sentinel/Dockerfile
+    ports:
+      - "4002:4002"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./packages/sentinel:/app/packages/sentinel
+      - sqlite_data:/app/data
+
+  atlas:
+    build:
+      context: .
+      dockerfile: ./packages/atlas/Dockerfile
+    ports:
+      - "4003:4003"
+    environment:
+      - NODE_ENV=development
+
+  composer:
+    build:
+      context: .
+      dockerfile: ./packages/composer/Dockerfile
+    ports:
+      - "4004:4004"
+    environment:
+      - NODE_ENV=development
+
+  observatory:
+    build:
+      context: .
+      dockerfile: ./packages/observatory/Dockerfile
+    ports:
+      - "4006:4006"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - sqlite_data:/app/data
+
+  # Demo servers for testing
+  demo-github-mcp:
+    image: node:20-alpine
+    command: sh -c "npx -y @modelcontextprotocol/server-github"
+    ports:
+      - "3001:3000"
+    environment:
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PAT}
+
+  demo-jira-mcp:
+    image: node:20-alpine
+    command: sh -c "echo 'Mock Jira MCP' && sleep infinity"
+    ports:
+      - "3002:3000"
+
+  demo-slack-mcp:
+    image: node:20-alpine
+    command: sh -c "npx -y @modelcontextprotocol/server-slack"
+    ports:
+      - "3003:3000"
+    environment:
+      - SLACK_BOT_TOKEN=${SLACK_TOKEN}
+
+volumes:
+  sqlite_data:

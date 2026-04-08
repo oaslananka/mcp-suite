@@ -1,0 +1,17 @@
+{
+  "entryPointStrategy": "resolve",
+  "entryPoints": [
+    "./packages/shared/src/index.ts",
+    "./packages/forge/src/index.ts",
+    "./packages/sentinel/src/index.ts",
+    "./packages/atlas/src/index.ts",
+    "./packages/composer/src/index.ts",
+    "./packages/bridge/src/index.ts",
+    "./packages/observatory/src/index.ts"
+  ],
+  "out": "docs/api",
+  "plugin": [
+    "typedoc-plugin-markdown"
+  ],
+  "tsconfig": "./tsconfig.typedoc.json"
+}

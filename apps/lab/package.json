@@ -1,0 +1,71 @@
+{
+  "name": "@oaslananka/lab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Postman for MCP — discover, test, mock, replay, and load-test any MCP server",
+  "license": "Apache-2.0",
+  "author": "oaslananka <oaslananka@users.noreply.github.com>",
+  "homepage": "https://github.com/oaslananka/mcp-suite#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oaslananka/mcp-suite.git",
+    "directory": "apps/lab"
+  },
+  "bugs": {
+    "url": "https://github.com/oaslananka/mcp-suite/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "main": "dist/main/index.js",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "mcp",
+    "electron",
+    "desktop",
+    "devtools",
+    "debugger",
+    "model-context-protocol"
+  ],
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "package": "electron-builder",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "clean": "rimraf dist release"
+  },
+  "dependencies": {
+    "@oaslananka/shared": "workspace:*",
+    "better-sqlite3": "^12.8.0",
+    "electron-updater": "^6.6.2",
+    "monaco-editor": "^0.55.1",
+    "pino": "^9.3.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-router-dom": "^6.24.0",
+    "recharts": "^2.12.0",
+    "@monaco-editor/react": "^4.6.0",
+    "uuid": "^10.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.0",
+    "electron-vite": "^2.3.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "vitest": "^2.1.9",
+    "typescript": "^5.5.0",
+    "@types/node": "^20.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "rimraf": "^6.0.1",
+    "vite": "^5.3.0"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "name": "@oaslananka/composer",
+  "version": "1.0.0",
+  "description": "Aggregate N MCP servers into one — zero config in AI clients",
+  "license": "Apache-2.0",
+  "author": "oaslananka <oaslananka@users.noreply.github.com>",
+  "homepage": "https://github.com/oaslananka/mcp-suite#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oaslananka/mcp-suite.git",
+    "directory": "packages/composer"
+  },
+  "bugs": {
+    "url": "https://github.com/oaslananka/mcp-suite/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "type": "module",
+  "mcpName": "io.github.oaslananka/composer",
+  "main": "dist/index.js",
+  "bin": {
+    "composer": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "server.json"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "keywords": [
+    "mcp",
+    "aggregator",
+    "proxy",
+    "multiplexer",
+    "model-context-protocol"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts src/cli.ts --format esm,cjs --dts --clean --tsconfig tsconfig.build.json",
+    "dev": "tsup src/index.ts src/cli.ts --format esm,cjs --watch --tsconfig tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@oaslananka/shared": "workspace:*",
+    "chokidar": "^3.6.0",
+    "commander": "^12.1.0",
+    "js-yaml": "^4.1.0",
+    "pino": "^9.3.0",
+    "uuid": "^10.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/uuid": "^10.0.0",
+    "rimraf": "^6.0.1",
+    "tsup": "^8.2.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.9"
+  }
+}

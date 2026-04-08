@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussions
+    url: https://github.com/oaslananka/mcp-suite/discussions
+    about: Ask questions, propose ideas, and share design discussions.
+  - name: Security Vulnerability
+    url: mailto:security@mcp-suite.dev
+    about: Please report security issues privately.

@@ -1,0 +1,8 @@
+policies:
+  - name: block-destructive-tools
+    when: "tool.annotations.destructive == true"
+    action: require_approval
+  - name: block-openai-tools
+    when: "tool.name startsWith 'openai:'"
+    action: deny
+    reason: OpenAI tools not permitted in this environment

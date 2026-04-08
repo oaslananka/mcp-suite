@@ -1,0 +1,70 @@
+{
+  "name": "mcp-suite",
+  "private": true,
+  "version": "1.0.0",
+  "description": "The missing infrastructure layer for the MCP ecosystem",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test:workspace": "turbo run test",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test": "pnpm run test:workspace && pnpm run test:integration",
+    "test:workspace:coverage": "turbo run test -- --coverage",
+    "test:integration:coverage": "vitest run --config vitest.integration.config.ts --coverage",
+    "test:coverage": "pnpm run test:workspace:coverage && pnpm run test:integration:coverage && pnpm run check:shared-coverage",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "audit": "pnpm audit --audit-level=moderate",
+    "knip": "knip",
+    "check:shared-coverage": "node scripts/check-shared-coverage.mjs",
+    "validate:smithery": "node scripts/validate-smithery.mjs",
+    "validate:registry": "node scripts/validate-mcp-registry.mjs",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm build && changeset publish",
+    "docs:api": "typedoc",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yml,yaml}\"",
+    "smoke:prod": "node scripts/smoke-prod-health.mjs",
+    "clean": "turbo run clean && rimraf node_modules \"packages/*/node_modules\" \"packages/*/dist\" \"apps/*/node_modules\" \"apps/*/dist\" coverage test-results docs/api",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.30.0",
+    "@eslint/js": "^10.0.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.5.0",
+    "@typescript-eslint/eslint-plugin": "^8.58.0",
+    "@typescript-eslint/parser": "^8.58.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "better-sqlite3": "^12.8.0",
+    "eslint": "^10.1.0",
+    "globals": "^17.4.0",
+    "husky": "^9.1.7",
+    "knip": "^5.63.1",
+    "lint-staged": "^16.2.6",
+    "prettier": "^3.8.1",
+    "pino-pretty": "^13.1.2",
+    "rimraf": "^6.0.1",
+    "turbo": "^2.9.3",
+    "typedoc": "^0.28.14",
+    "typedoc-plugin-markdown": "^4.9.0",
+    "typescript": "^6.0.2",
+    "vitest": "^2.1.9"
+  }
+}
