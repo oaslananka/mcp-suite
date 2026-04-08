@@ -8,6 +8,9 @@ docs/api/
 packages/*/test-results/
 apps/lab/release/
 .mcp-registry-release/
+.mcpregistry_github_token
+.mcpregistry_registry_token
+.tools/
 
 .env
 .env.local
