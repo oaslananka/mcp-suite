@@ -50,7 +50,7 @@
     "commander": "^12.1.0",
     "graphql": "^16.9.0",
     "js-yaml": "^4.1.0",
-    "protobufjs": "^7.3.0"
+    "protobufjs": "^7.5.5"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
