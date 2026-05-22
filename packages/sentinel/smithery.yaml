@@ -1,0 +1,55 @@
+name: "@oaslananka/sentinel"
+displayName: "MCP Sentinel"
+description: |
+  Zero-Trust security proxy for MCP servers.
+  Enforces policy rules, scrubs PII from payloads, maintains a tamper-proof
+  audit log, controls per-key spend limits, and supports human-in-the-loop
+  approval gates for destructive tool calls.
+homepage: "https://github.com/oaslananka/mcp-suite/tree/main/packages/sentinel"
+license: "Apache-2.0"
+categories:
+  - security
+  - proxy
+  - infrastructure
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required: []
+    properties:
+      upstreamUrl:
+        type: string
+        description: "HTTP/SSE URL of the upstream MCP server"
+        examples: ["http://localhost:3000"]
+      upstreamCommand:
+        type: string
+        description: "Shell command to spawn the upstream MCP server process"
+        examples: ["npx -y @modelcontextprotocol/server-filesystem /tmp"]
+      policyFile:
+        type: string
+        description: "Path to a sentinel-policy.yaml file"
+        default: "./sentinel-policy.yaml"
+      auditDb:
+        type: string
+        description: "Path to the SQLite audit database"
+        default: "./data/sentinel.sqlite"
+      port:
+        type: number
+        description: "Port for the HTTP management API (0 = disabled)"
+        default: 0
+    oneOf:
+      - required: ["upstreamUrl"]
+      - required: ["upstreamCommand"]
+  commandFunction: |
+    (config) => ({
+      command: "npx",
+      args: [
+        "-y", "@oaslananka/sentinel", "serve",
+        ...(config.upstreamUrl
+          ? ["--upstream-url", config.upstreamUrl]
+          : ["--upstream-command", config.upstreamCommand]),
+        ...(config.policyFile ? ["--policy", config.policyFile] : []),
+        "--db", config.auditDb ?? "./data/sentinel.sqlite",
+        ...(config.port ? ["--port", String(config.port)] : [])
+      ]
+    })

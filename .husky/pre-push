@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+
+case "$BRANCH" in
+  feat/*|fix/*|perf/*)
+    if ! find .changeset -maxdepth 1 -name "*.md" ! -name "README.md" | grep -q .; then
+      echo "No changeset found. Run: pnpm changeset"
+      exit 1
+    fi
+    ;;
+esac

@@ -1,0 +1,33 @@
+name: OSSF Scorecard
+
+on:
+  schedule:
+    - cron: "37 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  scorecard:
+    name: OSSF Scorecard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
+        with:
+          persist-credentials: false
+
+      - name: Run Scorecard
+        uses: ossf/scorecard-action@f2ea147fec3c2f0d459703eba7405b5e9bcd8c8f
+        with:
+          results_file: scorecard.sarif
+          results_format: sarif
+          publish_results: false

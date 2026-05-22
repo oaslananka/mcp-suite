@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  forge:
+    build:
+      context: ../..
+      dockerfile: ./packages/forge/Dockerfile
+    environment:
+      FORGE_DB_PATH: /app/data/forge.sqlite
+    ports:
+      - "4000:4000"
+
+  atlas:
+    build:
+      context: ../..
+      dockerfile: ./packages/atlas/Dockerfile
+    environment:
+      ATLAS_DB_PATH: /app/data/atlas.sqlite
+    ports:
+      - "4003:4003"

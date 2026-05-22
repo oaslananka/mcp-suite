@@ -1,0 +1,21 @@
+* @oaslananka
+
+/.github/workflows/ @oaslananka
+/.github/CODEOWNERS @oaslananka
+/release-please-config.json @oaslananka
+/.release-please-manifest.json @oaslananka
+/mcp.json @oaslananka
+/package.json @oaslananka
+/pnpm-lock.yaml @oaslananka
+/docker-compose*.yml @oaslananka
+/scripts/ @oaslananka
+/packages/shared/ @oaslananka
+/packages/forge/ @oaslananka
+/packages/sentinel/ @oaslananka
+/packages/atlas/ @oaslananka
+/packages/composer/ @oaslananka
+/packages/bridge/ @oaslananka
+/packages/observatory/ @oaslananka
+/apps/lab/ @oaslananka
+/docs/ @oaslananka
+/examples/ @oaslananka

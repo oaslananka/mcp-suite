@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/prepare-mcp-registry-publication.mjs"]
+    },
+    "packages/shared": {
+      "ignoreDependencies": ["pino-pretty"]
+    },
+    "packages/forge": {},
+    "packages/sentinel": {},
+    "packages/atlas": {},
+    "packages/composer": {},
+    "packages/bridge": {},
+    "packages/observatory": {},
+    "apps/lab": {
+      "entry": ["src/preload/index.ts", "electron-builder.config.ts", "electron.vite.config.ts"]
+    }
+  },
+  "ignoreExportsUsedInFile": true
+}

@@ -1,0 +1,32 @@
+name: "@oaslananka/composer"
+displayName: "MCP Composer"
+description: |
+  Aggregate any number of MCP servers behind a single stdio endpoint.
+  AI clients (Claude Desktop, Cursor, etc.) connect once; Composer routes
+  every tool/resource/prompt call to the correct backend with zero-config
+  namespace isolation.
+homepage: "https://github.com/oaslananka/mcp-suite/tree/main/packages/composer"
+license: "Apache-2.0"
+categories:
+  - aggregator
+  - proxy
+  - infrastructure
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required: ["configPath"]
+    properties:
+      configPath:
+        type: string
+        description: "Path to composer.yml listing backend MCP servers"
+        default: "./composer.yml"
+        examples: ["./composer.yml", "/etc/mcp/composer.yml"]
+  commandFunction: |
+    (config) => ({
+      command: "npx",
+      args: [
+        "-y", "@oaslananka/composer", "serve",
+        "--config", config.configPath ?? "./composer.yml"
+      ]
+    })

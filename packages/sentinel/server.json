@@ -1,0 +1,44 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.oaslananka/sentinel",
+  "title": "MCP Sentinel",
+  "description": "Zero-trust MCP security proxy with policy enforcement, PII scrubbing, approvals, and audit trails.",
+  "repository": {
+    "url": "https://github.com/oaslananka/mcp-suite",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@oaslananka/sentinel",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "SENTINEL_DB_PATH",
+          "description": "SQLite database path used for audit and key storage.",
+          "format": "string",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "SENTINEL_UPSTREAM_URL",
+          "description": "HTTP upstream MCP endpoint.",
+          "format": "string",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "SENTINEL_UPSTREAM_COMMAND",
+          "description": "stdio upstream MCP launch command.",
+          "format": "string",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

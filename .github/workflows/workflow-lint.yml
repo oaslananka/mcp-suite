@@ -1,0 +1,62 @@
+name: Workflow Lint And Secret Scan
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - "scripts/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+      - "scripts/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  workflow-lint:
+    name: actionlint, zizmor, gitleaks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
+        with:
+          persist-credentials: false
+
+      - name: Install scanners
+        shell: bash
+        run: |
+          set -euo pipefail
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.9
+          go install github.com/gitleaks/gitleaks/v8@v8.30.0
+          python3 -m pip install --user zizmor==1.14.2
+          echo "${HOME}/go/bin" >> "$GITHUB_PATH"
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Run actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+          actionlint .github/workflows/*.yml
+
+      - name: Run zizmor
+        shell: bash
+        run: |
+          set -euo pipefail
+          zizmor --offline --min-severity low .github/workflows
+
+      - name: Run Gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          gitleaks detect --source . --redact --no-git

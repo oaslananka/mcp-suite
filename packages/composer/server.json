@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.oaslananka/composer",
+  "title": "MCP Composer",
+  "description": "Aggregate multiple MCP backends behind a single stdio endpoint with namespaced routing.",
+  "repository": {
+    "url": "https://github.com/oaslananka/mcp-suite",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@oaslananka/composer",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "COMPOSER_CONFIG",
+          "description": "Path to the composer.yml backend definition file.",
+          "format": "string",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

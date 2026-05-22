@@ -1,0 +1,63 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      APPROVE_RELEASE:
+        description: "Type publish to confirm guarded npm publication from GitHub Release assets"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  npm:
+    name: Publish npm Packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: npm-production
+    if: ${{ inputs.APPROVE_RELEASE == 'publish' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+
+      - name: Verify release state
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/release-state.mjs --json > release-state.json
+          node -e "const fs=require('node:fs'); const state=JSON.parse(fs.readFileSync('release-state.json','utf8')); if (!state.safe_to_publish) { console.error(JSON.stringify(state.blockers, null, 2)); process.exit(1); }"
+
+      - name: Download GitHub Release npm artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/npm
+          gh release download --pattern "*.tgz" --dir artifacts/npm
+
+      - name: Publish npm package tarballs
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${NODE_AUTH_TOKEN}"
+          for package_file in artifacts/npm/*.tgz; do
+            npm publish "${package_file}" --access public --provenance
+          done

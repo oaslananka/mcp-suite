@@ -1,0 +1,85 @@
+{
+  "name": "mcp-suite",
+  "private": true,
+  "version": "1.0.0",
+  "description": "The missing infrastructure layer for the MCP ecosystem",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test:workspace": "turbo run test",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test": "pnpm run test:workspace && pnpm run test:integration",
+    "test:workspace:coverage": "turbo run test -- --coverage",
+    "test:integration:coverage": "vitest run --config vitest.integration.config.ts --coverage",
+    "test:coverage": "pnpm run test:workspace:coverage && pnpm run test:integration:coverage && pnpm run check:shared-coverage",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "audit": "pnpm audit --audit-level=moderate",
+    "security": "node scripts/security-scan.mjs && pnpm run audit",
+    "knip": "knip",
+    "failure:classify": "node scripts/classify-gh-failure.mjs",
+    "check:shared-coverage": "node scripts/check-shared-coverage.mjs",
+    "validate:smithery": "node scripts/validate-smithery.mjs",
+    "validate:registry": "node scripts/validate-mcp-registry.mjs",
+    "release:dry-run": "node scripts/release-preflight.mjs && node scripts/release-state.mjs --dry-run",
+    "ci": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run security && pnpm run knip && pnpm run validate:registry && pnpm run validate:smithery && pnpm run build && pnpm run smoke:prod && pnpm run release:dry-run",
+    "docs:api": "typedoc",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yml,yaml}\"",
+    "smoke:prod": "node scripts/smoke-prod-health.mjs",
+    "clean": "turbo run clean && rimraf node_modules \"packages/*/node_modules\" \"packages/*/dist\" \"apps/*/node_modules\" \"apps/*/dist\" coverage test-results docs/api",
+    "prepare": "husky",
+    "precommit": "lint-staged && pnpm run lint"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "pnpm": {
+    "overrides": {
+      "@tootallnate/once": "^3.0.1",
+      "@xmldom/xmldom": "^0.8.13",
+      "dompurify": "^3.4.2",
+      "flatted": "^3.4.2",
+      "ip-address": "^10.1.1",
+      "lodash": "^4.18.1",
+      "postcss": "^8.5.14",
+      "tar": "^7.5.13"
+    },
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "electron",
+      "electron-winstaller",
+      "esbuild",
+      "protobufjs"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.58.0",
+    "@typescript-eslint/parser": "^8.58.0",
+    "@vitest/coverage-v8": "^4.1.3",
+    "better-sqlite3": "^12.8.0",
+    "eslint": "^10.2.0",
+    "globals": "^17.4.0",
+    "husky": "^9.1.7",
+    "knip": "^5.63.1",
+    "lint-staged": "^16.2.6",
+    "prettier": "^3.8.1",
+    "rimraf": "^6.0.1",
+    "turbo": "^2.9.3",
+    "typedoc": "^0.28.14",
+    "typedoc-plugin-markdown": "^4.9.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.3"
+  }
+}

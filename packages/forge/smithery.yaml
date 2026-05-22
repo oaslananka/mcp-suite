@@ -1,0 +1,41 @@
+name: "@oaslananka/forge"
+displayName: "MCP Forge"
+description: |
+  Declarative pipeline engine for MCP tool orchestration.
+  Define multi-step workflows in YAML — sequential, parallel, conditional,
+  looping — that chain MCP tool calls across one or many servers.
+  Comes with a REST API, cron scheduling, and a run history store.
+homepage: "https://github.com/oaslananka/mcp-suite/tree/main/packages/forge"
+license: "Apache-2.0"
+categories:
+  - orchestration
+  - pipeline
+  - infrastructure
+startCommand:
+  type: http
+  configSchema:
+    type: object
+    required: []
+    properties:
+      port:
+        type: number
+        description: "Port for the Forge REST API"
+        default: 4002
+      dbPath:
+        type: string
+        description: "Path to the SQLite run-history database"
+        default: "./data/forge.sqlite"
+      pipelineDir:
+        type: string
+        description: "Directory containing pipeline YAML files to auto-load"
+        default: "./pipelines"
+  commandFunction: |
+    (config) => ({
+      command: "npx",
+      args: [
+        "-y", "@oaslananka/forge", "serve",
+        "--port", String(config.port ?? 4002),
+        "--db", config.dbPath ?? "./data/forge.sqlite",
+        "--pipelines", config.pipelineDir ?? "./pipelines"
+      ]
+    })

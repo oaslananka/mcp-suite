@@ -1,0 +1,9 @@
+{
+  "packages/atlas": "1.0.0",
+  "packages/bridge": "1.0.0",
+  "packages/composer": "1.0.0",
+  "packages/forge": "1.0.0",
+  "packages/observatory": "1.0.0",
+  "packages/sentinel": "1.0.0",
+  "packages/shared": "1.0.0"
+}

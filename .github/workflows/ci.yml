@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  quality:
+    name: Format, Lint, Typecheck, Test, Build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@10.33.0 --activate
+          pnpm install --frozen-lockfile
+
+      - name: Format check
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run format:check
+
+      - name: Lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run lint
+
+      - name: Typecheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run typecheck
+
+      - name: Test
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run test
+
+      - name: Security
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run security
+
+      - name: Build
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run build
+
+      - name: Metadata and release preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run validate:registry
+          pnpm run validate:smithery
+          pnpm run release:dry-run
+
+  docker-smoke:
+    name: Docker Smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
+        with:
+          persist-credentials: false
+
+      - name: Compose config
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.yml config
+          docker compose -f docker-compose.prod.yml config
+
+      - name: Build production images
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.prod.yml build forge atlas observatory

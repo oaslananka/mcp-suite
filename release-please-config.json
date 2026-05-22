@@ -1,0 +1,43 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "88ad556",
+  "include-component-in-tag": true,
+  "separate-pull-requests": false,
+  "packages": {
+    "packages/atlas": {
+      "release-type": "node",
+      "package-name": "@oaslananka/atlas",
+      "changelog-path": "packages/atlas/CHANGELOG.md"
+    },
+    "packages/bridge": {
+      "release-type": "node",
+      "package-name": "@oaslananka/bridge",
+      "changelog-path": "packages/bridge/CHANGELOG.md"
+    },
+    "packages/composer": {
+      "release-type": "node",
+      "package-name": "@oaslananka/composer",
+      "changelog-path": "packages/composer/CHANGELOG.md"
+    },
+    "packages/forge": {
+      "release-type": "node",
+      "package-name": "@oaslananka/forge",
+      "changelog-path": "packages/forge/CHANGELOG.md"
+    },
+    "packages/observatory": {
+      "release-type": "node",
+      "package-name": "@oaslananka/observatory",
+      "changelog-path": "packages/observatory/CHANGELOG.md"
+    },
+    "packages/sentinel": {
+      "release-type": "node",
+      "package-name": "@oaslananka/sentinel",
+      "changelog-path": "packages/sentinel/CHANGELOG.md"
+    },
+    "packages/shared": {
+      "release-type": "node",
+      "package-name": "@oaslananka/shared",
+      "changelog-path": "packages/shared/CHANGELOG.md"
+    }
+  }
+}

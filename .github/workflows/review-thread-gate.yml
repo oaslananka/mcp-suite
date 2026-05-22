@@ -1,0 +1,44 @@
+name: Review Thread Gate
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  review-thread-gate:
+    name: Review Thread Gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
+        with:
+          persist-credentials: false
+
+      - name: Check review threads
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          APPLY_REVIEW_THREAD_LABELS: "true"
+        run: |
+          set -euo pipefail
+          node scripts/check-review-threads.mjs
+
+      - name: Upload review-thread summary
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: review-thread-summary
+          path: review-thread-summary.json
+          if-no-files-found: error
