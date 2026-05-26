@@ -6,11 +6,13 @@ Default branch protection should require pull requests, required status checks, 
 
 Protected `main` required check-run names:
 
-- Format, Lint, Typecheck, Test, Build
-- Docker Smoke
-- Analyze JavaScript and TypeScript
-- Review Thread Gate
-- actionlint, zizmor, gitleaks
+| Required check-run name              | Source workflow / job                         |
+| ------------------------------------ | --------------------------------------------- |
+| Format, Lint, Typecheck, Test, Build | CI / quality                                  |
+| Docker Smoke                         | CI / docker-smoke                             |
+| Analyze JavaScript and TypeScript    | CodeQL / analyze                              |
+| Review Thread Gate                   | Review Thread Gate / review-thread            |
+| actionlint, zizmor, gitleaks         | Workflow Lint And Secret Scan / workflow-lint |
 
 Release preflight runs inside the CI quality job, so it is covered by `Format, Lint, Typecheck, Test, Build`.
 
