@@ -25,6 +25,12 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093
+        with:
+          version: 10.33.0
+          run_install: false
+
       - name: Set up Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
@@ -35,8 +41,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          corepack enable
-          corepack prepare pnpm@10.33.0 --activate
           pnpm install --frozen-lockfile
 
       - name: Format check

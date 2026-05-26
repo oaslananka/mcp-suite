@@ -41,7 +41,9 @@ export class Scheduler {
 
   unscheduleAll(): void {
     for (const task of this.scheduledTasks.values()) {
-      task.stop();
+      void Promise.resolve(task.stop()).catch((error: unknown) => {
+        logger.error({ error }, "Failed to stop scheduled task");
+      });
     }
     this.scheduledTasks.clear();
   }
