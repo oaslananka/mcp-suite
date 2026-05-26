@@ -2,18 +2,9 @@ name: Workflow Lint And Secret Scan
 
 on:
   pull_request:
-    paths:
-      - ".github/workflows/**"
-      - "scripts/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
+    branches: [main]
   push:
     branches: [main]
-    paths:
-      - ".github/workflows/**"
-      - "scripts/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
 
 permissions:
   contents: read

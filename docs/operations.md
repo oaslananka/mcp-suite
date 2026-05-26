@@ -2,16 +2,17 @@
 
 ## Recommended Repository Settings
 
-Default branch protection should require pull requests, required status checks, at least one approving review, linear history, no force pushes, and no branch deletion. Release tags matching `v*` and component release tags should be protected from deletion or rewriting.
+Default branch protection should require pull requests, required status checks, at least one approving review, conversation resolution, linear history, no force pushes, and no branch deletion. Release tags matching `v*` and component release tags should be protected from deletion or rewriting. Admin bypass is reserved for documented break-glass recovery only.
 
-Recommended required checks:
+Protected `main` required checks:
 
-- CI
-- Workflow Lint And Secret Scan
-- CodeQL
-- Review Thread Gate
-- Release preflight
+- Format, Lint, Typecheck, Test, Build
 - Docker Smoke
+- Analyze JavaScript and TypeScript
+- Review Thread Gate
+- actionlint, zizmor, gitleaks
+
+Release preflight runs inside the CI quality job, so it is covered by `Format, Lint, Typecheck, Test, Build`.
 
 Enable auto-delete for merged branches. Keep admin bypass limited to documented break-glass use.
 
