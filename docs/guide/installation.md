@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js `>= 20`
+- Node.js `>= 24`
 - pnpm `>= 10`
 - Docker, optional for local stack work
 
@@ -47,3 +47,6 @@ docker compose up -d
 ```
 
 Use `docker-compose.prod.yml` when you want the production-oriented composition instead of the developer default.
+
+Published GHCR image names and digest verification commands are documented in
+[container operations](../containers.md).

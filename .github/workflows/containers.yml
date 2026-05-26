@@ -1,0 +1,148 @@
+---
+# yamllint disable rule:line-length
+
+name: Containers
+
+"on":
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/mcp-suite
+  PLATFORMS: linux/amd64,linux/arm64
+  QEMU_IMAGE: tonistiigi/binfmt@sha256:d3b963f787999e6c0219a48dba02978769286ff61a5f4d26245cb6a6e5567ea3
+
+jobs:
+  validate:
+    name: Container Validate (${{ matrix.image }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: atlas
+            dockerfile: ./packages/atlas/Dockerfile
+          - image: bridge
+            dockerfile: ./packages/bridge/Dockerfile
+          - image: composer
+            dockerfile: ./packages/composer/Dockerfile
+          - image: forge
+            dockerfile: ./packages/forge/Dockerfile
+          - image: observatory
+            dockerfile: ./packages/observatory/Dockerfile
+          - image: sentinel
+            dockerfile: ./packages/sentinel/Dockerfile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
+        with:
+          persist-credentials: false
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a
+        with:
+          image: ${{ env.QEMU_IMAGE }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5
+
+      - name: Build multi-arch image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ env.PLATFORMS }}
+          outputs: type=cacheonly
+          push: false
+          sbom: false
+          provenance: false
+
+  publish:
+    name: Container Publish (${{ matrix.image }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    if: ${{ github.event_name != 'pull_request' }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: atlas
+            dockerfile: ./packages/atlas/Dockerfile
+            description: Registry API and catalog UI for discovering MCP servers.
+          - image: bridge
+            dockerfile: ./packages/bridge/Dockerfile
+            description: OpenAPI and schema-first MCP server generator.
+          - image: composer
+            dockerfile: ./packages/composer/Dockerfile
+            description: Aggregation proxy for multiple backend MCP servers.
+          - image: forge
+            dockerfile: ./packages/forge/Dockerfile
+            description: Pipeline engine for orchestrating MCP tools.
+          - image: observatory
+            dockerfile: ./packages/observatory/Dockerfile
+            description: Metrics, traces, and anomaly detection dashboard.
+          - image: sentinel
+            dockerfile: ./packages/sentinel/Dockerfile
+            description: Zero-trust security proxy with policy and audit controls.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
+        with:
+          persist-credentials: false
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a
+        with:
+          image: ${{ env.QEMU_IMAGE }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5
+
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9
+        with:
+          images: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=sha,prefix=sha-
+          labels: |
+            org.opencontainers.image.title=mcp-suite-${{ matrix.image }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.licenses=Apache-2.0
+
+      - name: Build and publish multi-arch image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ env.PLATFORMS }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          provenance: mode=max
