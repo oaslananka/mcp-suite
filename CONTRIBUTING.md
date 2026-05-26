@@ -14,6 +14,12 @@ We expect all community members to act respectfully and inclusively.
 4. **Test all:** `pnpm run test`
 5. **Format:** `pnpm run format`
 
+## Supported Runtime Matrix
+
+- Node.js 24 LTS with pnpm 10.33.0 is the supported contributor runtime.
+- PR compatibility checks run format, lint, typecheck, and tests on Ubuntu 24.04, Windows 2025, and macOS 15.
+- The macOS check also builds the Electron Lab app; Docker smoke checks remain Linux-only.
+
 ## PR Process
 
 1. Fork the repo and create a branch from `main`.
