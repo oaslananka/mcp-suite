@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { ChildProcess } from "child_process";
 import { spawn, spawnSync } from "child_process";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { win32 } from "node:path";
 import { MCPClient, StdioTransport, StreamableHTTPTransport } from "@oaslananka/shared";
 import type { ServerCapabilities } from "@oaslananka/shared";
 import { MockEngine } from "../../lib/mockEngine.js";
@@ -331,10 +331,10 @@ function resolveWindowsPackageManagerCommand(
   }
 
   const candidates = [
-    join(env["ProgramFiles"] ?? "C:\\Program Files", "nodejs", `${name}.cmd`),
-    join(env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "nodejs", `${name}.cmd`),
-    join(env["LOCALAPPDATA"] ?? "", "Programs", "nodejs", `${name}.cmd`),
-    join(env["APPDATA"] ?? "", "npm", `${name}.cmd`),
+    win32.join(env["ProgramFiles"] ?? "C:\\Program Files", "nodejs", `${name}.cmd`),
+    win32.join(env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "nodejs", `${name}.cmd`),
+    win32.join(env["LOCALAPPDATA"] ?? "", "Programs", "nodejs", `${name}.cmd`),
+    win32.join(env["APPDATA"] ?? "", "npm", `${name}.cmd`),
   ];
 
   return candidates.find((candidate) => candidate.length > 0 && existsSync(candidate));
@@ -351,17 +351,19 @@ export function withWindowsCommandPath(
   const pathKey = Object.keys(env).find((key) => key.toLowerCase() === "path") ?? "Path";
   const currentPath = env[pathKey] ?? "";
   const extras = [
-    join(process.env["ProgramFiles"] ?? "C:\\Program Files", "nodejs"),
-    join(process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "nodejs"),
-    join(process.env["LOCALAPPDATA"] ?? "", "Programs", "nodejs"),
-    join(process.env["APPDATA"] ?? "", "npm"),
+    win32.join(env["ProgramFiles"] ?? "C:\\Program Files", "nodejs"),
+    win32.join(env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "nodejs"),
+    win32.join(env["LOCALAPPDATA"] ?? "", "Programs", "nodejs"),
+    win32.join(env["APPDATA"] ?? "", "npm"),
   ].filter((part) => part.length > 0);
 
-  const merged = Array.from(new Set([...extras, ...currentPath.split(";").filter(Boolean)]));
+  const merged = Array.from(
+    new Set([...extras, ...currentPath.split(win32.delimiter).filter(Boolean)])
+  );
 
   return {
     ...env,
-    [pathKey]: merged.join(";"),
+    [pathKey]: merged.join(win32.delimiter),
   };
 }
 
