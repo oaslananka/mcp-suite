@@ -7,37 +7,37 @@
     "packages/atlas": {
       "release-type": "node",
       "package-name": "@oaslananka/atlas",
-      "changelog-path": "packages/atlas/CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md"
     },
     "packages/bridge": {
       "release-type": "node",
       "package-name": "@oaslananka/bridge",
-      "changelog-path": "packages/bridge/CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md"
     },
     "packages/composer": {
       "release-type": "node",
       "package-name": "@oaslananka/composer",
-      "changelog-path": "packages/composer/CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md"
     },
     "packages/forge": {
       "release-type": "node",
       "package-name": "@oaslananka/forge",
-      "changelog-path": "packages/forge/CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md"
     },
     "packages/observatory": {
       "release-type": "node",
       "package-name": "@oaslananka/observatory",
-      "changelog-path": "packages/observatory/CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md"
     },
     "packages/sentinel": {
       "release-type": "node",
       "package-name": "@oaslananka/sentinel",
-      "changelog-path": "packages/sentinel/CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md"
     },
     "packages/shared": {
       "release-type": "node",
       "package-name": "@oaslananka/shared",
-      "changelog-path": "packages/shared/CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md"
     }
   }
 }
