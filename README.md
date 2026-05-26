@@ -93,6 +93,8 @@ Once the services are up:
 
 The suite currently defaults to MCP protocol version `2025-11-25` while keeping compatibility helpers for `2025-11-05` handshakes during the 1.0 transition.
 
+Architecture decisions are recorded in the [ADR index](./docs/adr/index.md).
+
 ## Development
 
 ```bash
@@ -107,7 +109,7 @@ make knip
 pnpm run release:dry-run
 ```
 
-More setup and workflow guidance lives in [docs/development.md](./docs/development.md), [docs/testing.md](./docs/testing.md), [docs/security.md](./docs/security.md), [docs/release.md](./docs/release.md), and the guide docs under [docs/guide](./docs/guide/introduction.md).
+More setup and workflow guidance lives in [docs/development.md](./docs/development.md), [docs/testing.md](./docs/testing.md), [docs/security.md](./docs/security.md), [docs/release.md](./docs/release.md), the generated API reference path in [docs/api-reference.md](./docs/api-reference.md), and the guide docs under [docs/guide](./docs/guide/introduction.md).
 
 ## Release Policy
 

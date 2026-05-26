@@ -1,0 +1,68 @@
+---
+name: Docs
+
+"on":
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  api-docs:
+    name: API Docs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    if: >-
+      ${{
+        github.event_name != 'pull_request' ||
+        github.event.pull_request.draft == false
+      }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+
+      - name: Generate API docs
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm docs:api
+          test -f docs/api/README.md
+          test -f docs/api/modules.md
+          first_doc="$(find docs/api -type f -name '*.md' -print -quit)"
+          test -n "${first_doc}"
+
+      - name: Upload API docs artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: api-docs-${{ github.sha }}
+          path: docs/api
+          if-no-files-found: error
+          retention-days: 30
