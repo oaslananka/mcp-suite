@@ -1,6 +1,6 @@
 {
   "name": "@oaslananka/forge",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Chain MCP tools into declarative pipelines — the Unix pipe for MCP",
   "license": "Apache-2.0",
   "author": "oaslananka <oaslananka@users.noreply.github.com>",
