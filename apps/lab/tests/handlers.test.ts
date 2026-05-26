@@ -8,6 +8,7 @@ const ipcHandle = vi.hoisted(() =>
 );
 const spawnMock = vi.hoisted(() => vi.fn());
 const spawnSyncMock = vi.hoisted(() => vi.fn());
+const existsSyncMock = vi.hoisted(() => vi.fn(() => false));
 const killMock = vi.hoisted(() => vi.fn());
 const client = vi.hoisted(() => ({
   connect: vi.fn(),
@@ -67,6 +68,10 @@ vi.mock("child_process", () => ({
   spawnSync: spawnSyncMock,
 }));
 
+vi.mock("node:fs", () => ({
+  existsSync: existsSyncMock,
+}));
+
 vi.mock("@oaslananka/shared", () => ({
   MCPClient: MCPClientMock,
   StdioTransport: StdioTransportMock,
@@ -108,6 +113,8 @@ describe("registerHandlers", () => {
     ipcHandle.mockClear();
     spawnMock.mockReset();
     spawnSyncMock.mockReset();
+    existsSyncMock.mockReset();
+    existsSyncMock.mockReturnValue(false);
     killMock.mockReset();
     client.connect.mockReset();
     client.disconnect.mockReset();
@@ -324,6 +331,9 @@ describe("registerHandlers", () => {
     spawnSyncMock.mockReturnValue({
       stdout: "C:\\\\Program Files\\\\nodejs\\\\npx.cmd\r\n",
     });
+    existsSyncMock.mockImplementation(
+      (path: string) => path === "C:\\\\Program Files\\\\nodejs\\\\npx.cmd"
+    );
     spawnMock.mockReturnValue({
       stdout: {},
       stdin: {},

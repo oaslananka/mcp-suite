@@ -14,12 +14,7 @@
     "packages/bridge": {},
     "packages/observatory": {},
     "apps/lab": {
-      "entry": [
-        "src/main/index.ts",
-        "src/preload/index.ts",
-        "electron-builder.config.ts",
-        "electron.vite.config.ts"
-      ]
+      "entry": ["src/preload/index.ts", "electron-builder.config.ts", "electron.vite.config.ts"]
     }
   },
   "ignoreExportsUsedInFile": true
