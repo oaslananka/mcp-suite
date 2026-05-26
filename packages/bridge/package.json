@@ -1,6 +1,6 @@
 {
   "name": "@oaslananka/bridge",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Turn any OpenAPI/GraphQL/gRPC API into an MCP server",
   "license": "Apache-2.0",
   "author": "oaslananka <oaslananka@users.noreply.github.com>",
