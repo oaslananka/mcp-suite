@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { stubProcessPlatform } from "./platform-test-utils.js";
 
 const registeredHandlers = vi.hoisted(() => new Map<string, Function>());
 const ipcHandle = vi.hoisted(() =>
@@ -56,7 +55,6 @@ const StdioTransportMock = vi.hoisted(() =>
     }
   )
 );
-let restorePlatform: (() => void) | undefined;
 
 vi.mock("electron", () => ({
   BrowserWindow: vi.fn(),
@@ -132,8 +130,6 @@ describe("registerHandlers", () => {
   });
 
   afterEach(() => {
-    restorePlatform?.();
-    restorePlatform = undefined;
     vi.clearAllMocks();
   });
 
@@ -326,18 +322,16 @@ describe("registerHandlers", () => {
     expect(spawnMock).not.toHaveBeenCalled();
   });
 
-  it("uses resolved Windows .cmd executables without shell command lines", async () => {
-    restorePlatform = stubProcessPlatform("win32");
+  it("spawns package commands without shell command lines", async () => {
+    const windowsNpxPath = "C:\\\\Program Files\\\\nodejs\\\\npx.cmd";
     client.connect.mockResolvedValue({
       serverInfo: { name: "Local", version: "1.0.0" },
       capabilities: {},
     });
     spawnSyncMock.mockReturnValue({
-      stdout: "C:\\\\Program Files\\\\nodejs\\\\npx.cmd\r\n",
+      stdout: `${windowsNpxPath}\r\n`,
     });
-    existsSyncMock.mockImplementation(
-      (path: string) => path === "C:\\\\Program Files\\\\nodejs\\\\npx.cmd"
-    );
+    existsSyncMock.mockImplementation((path: string) => path === windowsNpxPath);
     spawnMock.mockReturnValue({
       stdout: {},
       stdin: {},
@@ -363,13 +357,16 @@ describe("registerHandlers", () => {
 
     expect(result).toMatchObject({ success: true });
     expect(spawnMock).toHaveBeenCalledWith(
-      "C:\\\\Program Files\\\\nodejs\\\\npx.cmd",
+      process.platform === "win32" ? windowsNpxPath : "npx",
       ["-y", "@oaslananka/server", "--name", "hello & goodbye"],
       expect.objectContaining({
         env: expect.any(Object),
         windowsHide: true,
       })
     );
+    if (process.platform !== "win32") {
+      expect(spawnSyncMock).not.toHaveBeenCalled();
+    }
     expect(spawnMock.mock.calls[0]?.[2]).not.toHaveProperty("shell", true);
   });
 
