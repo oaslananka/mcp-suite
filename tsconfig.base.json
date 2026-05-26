@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
@@ -33,14 +32,14 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "paths": {
-      "@oaslananka/shared": ["packages/shared/src/index.ts"],
-      "@oaslananka/forge": ["packages/forge/src/index.ts"],
-      "@oaslananka/sentinel": ["packages/sentinel/src/index.ts"],
-      "@oaslananka/atlas": ["packages/atlas/src/index.ts"],
-      "@oaslananka/composer": ["packages/composer/src/index.ts"],
-      "@oaslananka/bridge": ["packages/bridge/src/index.ts"],
-      "@oaslananka/observatory": ["packages/observatory/src/index.ts"],
-      "@oaslananka/lab": ["apps/lab/src/main/index.ts"]
+      "@oaslananka/shared": ["./packages/shared/src/index.ts"],
+      "@oaslananka/forge": ["./packages/forge/src/index.ts"],
+      "@oaslananka/sentinel": ["./packages/sentinel/src/index.ts"],
+      "@oaslananka/atlas": ["./packages/atlas/src/index.ts"],
+      "@oaslananka/composer": ["./packages/composer/src/index.ts"],
+      "@oaslananka/bridge": ["./packages/bridge/src/index.ts"],
+      "@oaslananka/observatory": ["./packages/observatory/src/index.ts"],
+      "@oaslananka/lab": ["./apps/lab/src/main/index.ts"]
     }
   }
 }
