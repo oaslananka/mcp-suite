@@ -5,6 +5,8 @@ Thank you for contributing! Here are the guidelines to ensure code quality and c
 ## Code of Conduct
 
 We expect all community members to act respectfully and inclusively.
+Governance, triage, stale, support, and maintainer response policies live in
+[docs/governance.md](./docs/governance.md).
 
 ## Development Setup
 

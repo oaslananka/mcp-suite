@@ -13,6 +13,7 @@ apps/lab/release/
 .cursor/
 .claude/
 .codex/
+.codex-checkpoints/
 .mcpregistry_github_token
 .mcpregistry_registry_token
 .tools/
