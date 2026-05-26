@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      release_tags:
+        description: "Comma or newline separated existing release tags to upload assets to"
+        required: false
+        type: string
 
 permissions: {}
 
@@ -21,8 +26,15 @@ jobs:
       pull-requests: write
       issues: write
     outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
+      releases_created: ${{ steps.release.outputs.releases_created }}
+      paths_released: ${{ steps.release.outputs.paths_released }}
+      atlas_tag: ${{ steps.release.outputs['packages/atlas--tag_name'] }}
+      bridge_tag: ${{ steps.release.outputs['packages/bridge--tag_name'] }}
+      composer_tag: ${{ steps.release.outputs['packages/composer--tag_name'] }}
+      forge_tag: ${{ steps.release.outputs['packages/forge--tag_name'] }}
+      observatory_tag: ${{ steps.release.outputs['packages/observatory--tag_name'] }}
+      sentinel_tag: ${{ steps.release.outputs['packages/sentinel--tag_name'] }}
+      shared_tag: ${{ steps.release.outputs['packages/shared--tag_name'] }}
     steps:
       - name: Checkout
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
@@ -39,7 +51,7 @@ jobs:
   assets:
     name: Build Release Assets
     needs: release
-    if: ${{ needs.release.outputs.release_created == 'true' }}
+    if: ${{ needs.release.outputs.releases_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.release_tags != '') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
@@ -79,10 +91,47 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ needs.release.outputs.tag_name }}
+          RELEASE_TAGS_INPUT: ${{ inputs.release_tags }}
+          ATLAS_TAG: ${{ needs.release.outputs.atlas_tag }}
+          BRIDGE_TAG: ${{ needs.release.outputs.bridge_tag }}
+          COMPOSER_TAG: ${{ needs.release.outputs.composer_tag }}
+          FORGE_TAG: ${{ needs.release.outputs.forge_tag }}
+          OBSERVATORY_TAG: ${{ needs.release.outputs.observatory_tag }}
+          SENTINEL_TAG: ${{ needs.release.outputs.sentinel_tag }}
+          SHARED_TAG: ${{ needs.release.outputs.shared_tag }}
         run: |
           set -euo pipefail
-          gh release upload "${RELEASE_TAG}" artifacts/npm/*.tgz artifacts/sbom.spdx.json artifacts/SHA256SUMS.txt
+          node <<'NODE' > "${RUNNER_TEMP}/release-tags.txt"
+          const explicitTags = process.env.RELEASE_TAGS_INPUT ?? "";
+          const releaseTags = explicitTags.trim()
+            ? explicitTags.split(/[,\s]+/)
+            : [
+                process.env.ATLAS_TAG,
+                process.env.BRIDGE_TAG,
+                process.env.COMPOSER_TAG,
+                process.env.FORGE_TAG,
+                process.env.OBSERVATORY_TAG,
+                process.env.SENTINEL_TAG,
+                process.env.SHARED_TAG,
+              ];
+          const uniqueTags = [
+            ...new Set(
+              releaseTags
+                .map((tag) => tag?.trim())
+                .filter((tag) => tag && tag !== "null" && tag !== "undefined")
+            ),
+          ];
+          if (uniqueTags.length === 0) {
+            console.error("No release tags resolved for asset upload.");
+            process.exit(1);
+          }
+          process.stdout.write(`${uniqueTags.join("\n")}\n`);
+          NODE
+
+          while IFS= read -r release_tag; do
+            echo "Uploading release assets to ${release_tag}"
+            gh release upload "${release_tag}" artifacts/npm/*.tgz artifacts/sbom.spdx.json artifacts/SHA256SUMS.txt --clobber
+          done < "${RUNNER_TEMP}/release-tags.txt"
 
       - name: Post-release state
         shell: bash
