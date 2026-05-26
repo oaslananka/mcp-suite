@@ -1,11 +1,11 @@
-import cron from "node-cron";
-import { ForgeEngine } from "../engine/ForgeEngine.js";
-import { PipelineConfig } from "../dsl/schema.js";
+import cron, { type ScheduledTask } from "node-cron";
+import type { ForgeEngine } from "../engine/ForgeEngine.js";
+import type { PipelineConfig } from "../dsl/schema.js";
 import { logger } from "@oaslananka/shared";
 
 export class Scheduler {
   private engine: ForgeEngine;
-  private scheduledTasks: Map<string, cron.ScheduledTask> = new Map();
+  private scheduledTasks: Map<string, ScheduledTask> = new Map();
 
   constructor(engine: ForgeEngine) {
     this.engine = engine;
