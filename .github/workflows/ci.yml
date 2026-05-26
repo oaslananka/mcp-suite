@@ -61,11 +61,11 @@ jobs:
           set -euo pipefail
           pnpm run typecheck
 
-      - name: Test
+      - name: Test coverage
         shell: bash
         run: |
           set -euo pipefail
-          pnpm run test
+          pnpm run test:coverage
 
       - name: Security
         shell: bash
@@ -73,11 +73,23 @@ jobs:
           set -euo pipefail
           pnpm run security
 
+      - name: Dead code detection
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run knip
+
       - name: Build
         shell: bash
         run: |
           set -euo pipefail
           pnpm run build
+
+      - name: Production smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run smoke:prod
 
       - name: Metadata and release preflight
         shell: bash

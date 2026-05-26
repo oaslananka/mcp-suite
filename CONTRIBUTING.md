@@ -19,7 +19,7 @@ We expect all community members to act respectfully and inclusively.
 1. Fork the repo and create a branch from `main`.
 2. Follow Conventional Commits: `feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`.
 3. Create tests for your features. **Core logic must be >80% covered**.
-4. Run `pnpm run format:check`, `pnpm run lint`, `pnpm run typecheck`, `pnpm run test`, `pnpm run security`, and `pnpm run release:dry-run` before submitting.
+4. Run `pnpm run ci` before submitting; it enforces format, lint, typecheck, coverage, security, dead-code, build, production smoke, metadata, and release preflight checks.
 5. Create a descriptive PR outlining the problem and your solution.
 6. Do not publish packages, containers, marketplace artifacts, or registry metadata from a PR.
 
