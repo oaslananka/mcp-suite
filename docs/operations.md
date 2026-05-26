@@ -2,9 +2,9 @@
 
 ## Recommended Repository Settings
 
-Default branch protection should require pull requests, required status checks, at least one approving review, conversation resolution, linear history, no force pushes, and no branch deletion. Release tags matching `v*` and component release tags should be protected from deletion or rewriting. Admin bypass is reserved for documented break-glass recovery only.
+Default branch protection should require pull requests, required status checks, at least one approving review, conversation resolution, linear history, no force pushes, and no branch deletion. Release tags matching `v*` and component release tags should be protected from deletion or rewriting.
 
-Protected `main` required checks:
+Protected `main` required check-run names:
 
 - Format, Lint, Typecheck, Test, Build
 - Docker Smoke
