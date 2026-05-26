@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { stubProcessPlatform } from "./platform-test-utils.js";
 
 type IpcHandler = (...args: unknown[]) => unknown;
 
@@ -53,7 +52,6 @@ const StdioTransportMock = vi.hoisted(() =>
     }
   )
 );
-let restorePlatform: (() => void) | undefined;
 
 vi.mock("electron", () => ({
   BrowserWindow: vi.fn(),
@@ -83,6 +81,8 @@ async function loadHandlersModule() {
   return {
     IpcChannel: channelsModule.IpcChannel,
     registerHandlers: handlersModule.registerHandlers,
+    resolveStdioCommand: handlersModule.resolveStdioCommand,
+    withWindowsCommandPath: handlersModule.withWindowsCommandPath,
   };
 }
 
@@ -127,8 +127,6 @@ describe("registerHandlers coverage edges", () => {
   });
 
   afterEach(() => {
-    restorePlatform?.();
-    restorePlatform = undefined;
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
     vi.clearAllMocks();
@@ -176,37 +174,33 @@ describe("registerHandlers coverage edges", () => {
   });
 
   it("resolves package manager commands through Windows fallback locations", async () => {
-    restorePlatform = stubProcessPlatform("win32");
-    vi.stubEnv("APPDATA", "C:\\Users\\Admin\\AppData\\Roaming");
-    client.connect.mockResolvedValue({ serverInfo: { name: "Local" }, capabilities: {} });
+    const env = {
+      APPDATA: "C:\\Users\\Admin\\AppData\\Roaming",
+      Path: "C:\\Existing\\bin",
+    } satisfies NodeJS.ProcessEnv;
     spawnSyncMock.mockReturnValue({ stdout: "" });
     existsSyncMock.mockImplementation(
       (candidate: string) => candidate === "C:\\Users\\Admin\\AppData\\Roaming\\npm\\pnpm.cmd"
     );
-    spawnMock.mockReturnValue({ stdout: {}, stdin: {}, kill: killMock, on: vi.fn() });
-    const db = createDatabaseMock();
-    const { IpcChannel, registerHandlers } = await loadHandlersModule();
+    const { resolveStdioCommand, withWindowsCommandPath } = await loadHandlersModule();
 
-    registerHandlers(db as never, null);
-    const result = await getHandler(IpcChannel.ConnectServer)(
-      {},
-      { type: "stdio", command: "pnpm" }
-    );
+    const command = resolveStdioCommand("pnpm", "win32", env);
+    const resolvedEnv = withWindowsCommandPath(env, "win32");
 
-    expect(result).toMatchObject({ success: true });
-    expect(spawnMock).toHaveBeenCalledWith(
-      "C:\\Users\\Admin\\AppData\\Roaming\\npm\\pnpm.cmd",
-      [],
-      expect.objectContaining({ windowsHide: true })
-    );
+    expect(command).toBe("C:\\Users\\Admin\\AppData\\Roaming\\npm\\pnpm.cmd");
+    expect(resolvedEnv).toMatchObject({
+      Path: expect.stringContaining("C:\\Users\\Admin\\AppData\\Roaming\\npm"),
+    });
+    expect(resolvedEnv.Path).toContain("C:\\Existing\\bin");
   });
 
-  it("keeps raw stdio commands on non-Windows platforms", async () => {
-    restorePlatform = stubProcessPlatform("linux");
+  it("keeps raw stdio commands and non-Windows environments unchanged", async () => {
     client.connect.mockResolvedValue({ serverInfo: { name: "Local" }, capabilities: {} });
     spawnMock.mockReturnValue({ stdout: {}, stdin: {}, kill: killMock, on: vi.fn() });
     const db = createDatabaseMock();
-    const { IpcChannel, registerHandlers } = await loadHandlersModule();
+    const { IpcChannel, registerHandlers, resolveStdioCommand, withWindowsCommandPath } =
+      await loadHandlersModule();
+    const env = { PATH: "/usr/bin" } satisfies NodeJS.ProcessEnv;
 
     registerHandlers(db as never, null);
     const result = await getHandler(IpcChannel.ConnectServer)(
@@ -215,11 +209,13 @@ describe("registerHandlers coverage edges", () => {
     );
 
     expect(result).toMatchObject({ success: true });
+    expect(resolveStdioCommand("pnpm", "linux", env)).toBe("pnpm");
+    expect(withWindowsCommandPath(env, "linux")).toBe(env);
     expect(spawnSyncMock).not.toHaveBeenCalled();
     expect(spawnMock).toHaveBeenCalledWith(
       "node",
       ["server.js"],
-      expect.objectContaining({ env: process.env })
+      expect.objectContaining({ env: expect.any(Object), windowsHide: true })
     );
   });
 });
