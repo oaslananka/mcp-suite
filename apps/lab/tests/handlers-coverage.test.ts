@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { stubProcessPlatform } from "./platform-test-utils.js";
 
 type IpcHandler = (...args: unknown[]) => unknown;
 
@@ -52,6 +53,7 @@ const StdioTransportMock = vi.hoisted(() =>
     }
   )
 );
+let restorePlatform: (() => void) | undefined;
 
 vi.mock("electron", () => ({
   BrowserWindow: vi.fn(),
@@ -125,6 +127,8 @@ describe("registerHandlers coverage edges", () => {
   });
 
   afterEach(() => {
+    restorePlatform?.();
+    restorePlatform = undefined;
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
     vi.clearAllMocks();
@@ -172,7 +176,7 @@ describe("registerHandlers coverage edges", () => {
   });
 
   it("resolves package manager commands through Windows fallback locations", async () => {
-    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    restorePlatform = stubProcessPlatform("win32");
     vi.stubEnv("APPDATA", "C:\\Users\\Admin\\AppData\\Roaming");
     client.connect.mockResolvedValue({ serverInfo: { name: "Local" }, capabilities: {} });
     spawnSyncMock.mockReturnValue({ stdout: "" });
@@ -198,7 +202,7 @@ describe("registerHandlers coverage edges", () => {
   });
 
   it("keeps raw stdio commands on non-Windows platforms", async () => {
-    vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+    restorePlatform = stubProcessPlatform("linux");
     client.connect.mockResolvedValue({ serverInfo: { name: "Local" }, capabilities: {} });
     spawnMock.mockReturnValue({ stdout: {}, stdin: {}, kill: killMock, on: vi.fn() });
     const db = createDatabaseMock();

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { stubProcessPlatform } from "./platform-test-utils.js";
 
 const registeredHandlers = vi.hoisted(() => new Map<string, Function>());
 const ipcHandle = vi.hoisted(() =>
@@ -55,6 +56,7 @@ const StdioTransportMock = vi.hoisted(() =>
     }
   )
 );
+let restorePlatform: (() => void) | undefined;
 
 vi.mock("electron", () => ({
   BrowserWindow: vi.fn(),
@@ -130,6 +132,8 @@ describe("registerHandlers", () => {
   });
 
   afterEach(() => {
+    restorePlatform?.();
+    restorePlatform = undefined;
     vi.clearAllMocks();
   });
 
@@ -323,7 +327,7 @@ describe("registerHandlers", () => {
   });
 
   it("uses resolved Windows .cmd executables without shell command lines", async () => {
-    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    restorePlatform = stubProcessPlatform("win32");
     client.connect.mockResolvedValue({
       serverInfo: { name: "Local", version: "1.0.0" },
       capabilities: {},
