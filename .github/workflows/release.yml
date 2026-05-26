@@ -71,15 +71,19 @@ jobs:
 
       - name: Build release assets
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TURBO_TELEMETRY_DISABLED: "1"
         run: |
           set -euo pipefail
           corepack enable
           corepack prepare pnpm@10.33.0 --activate
-          pnpm install --frozen-lockfile
-          pnpm run ci
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm rebuild esbuild
+          pnpm --filter "./packages/*" run build
           mkdir -p artifacts/npm artifacts/provenance
           node scripts/pack-npm-artifacts.mjs artifacts/npm
-          npm sbom --all --sbom-format spdx > artifacts/sbom.spdx.json
+          gh api "repos/${GITHUB_REPOSITORY}/dependency-graph/sbom" --jq ".sbom" > artifacts/sbom.spdx.json
           sha256sum artifacts/npm/*.tgz artifacts/sbom.spdx.json > artifacts/SHA256SUMS.txt
 
       - name: Attest npm package artifacts
