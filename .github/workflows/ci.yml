@@ -1,6 +1,7 @@
+---
 name: CI
 
-on:
+"on":
   pull_request:
     branches: [main]
   push:
@@ -10,7 +11,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: >-
+    ${{ github.workflow }}-${{
+      github.event.pull_request.number || github.ref
+    }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -18,21 +22,28 @@ jobs:
     name: Format, Lint, Typecheck, Test, Build
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    if: >-
+      ${{
+        github.event_name != 'pull_request' ||
+        github.event.pull_request.draft == false
+      }}
     steps:
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
+        uses: >-
+          actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
         with:
           persist-credentials: false
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093
+        uses: >-
+          pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093
         with:
           version: 10.33.0
           run_install: false
 
       - name: Set up Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        uses: >-
+          actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: 24
           cache: pnpm
@@ -79,6 +90,36 @@ jobs:
           set -euo pipefail
           pnpm run build
 
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec playwright install --with-deps chromium
+
+      - name: UI E2E
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run test:e2e
+
+      - name: UI Accessibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run test:a11y
+
+      - name: UI Performance
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run test:perf
+
+      - name: Size budgets
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run size
+
       - name: Metadata and release preflight
         shell: bash
         run: |
@@ -91,10 +132,15 @@ jobs:
     name: Docker Smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    if: >-
+      ${{
+        github.event_name != 'pull_request' ||
+        github.event.pull_request.draft == false
+      }}
     steps:
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
+        uses: >-
+          actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
         with:
           persist-credentials: false
 
@@ -109,4 +155,5 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker compose -f docker-compose.prod.yml build forge atlas observatory
+          docker compose -f docker-compose.prod.yml build \
+            forge atlas observatory

@@ -8,6 +8,10 @@ The repository uses Vitest for package and integration tests.
 pnpm run test
 pnpm run test:coverage
 pnpm run test:integration
+pnpm run test:e2e
+pnpm run test:a11y
+pnpm run test:perf
+pnpm run size
 ```
 
 Focused package tests can be run with:
@@ -17,6 +21,30 @@ pnpm --filter @oaslananka/forge exec vitest run tests/api-server.test.ts
 ```
 
 The workspace test task depends on upstream package builds through `turbo.json`, so a clean checkout can resolve workspace package exports without committing generated `dist/` files.
+
+## UI Quality Gates
+
+Atlas, Observatory, and Lab browser gates run against built assets with mocked API and desktop preload boundaries. Build first so the static smoke server can serve the current production bundles:
+
+```bash
+pnpm run build
+pnpm run test:e2e
+pnpm run test:a11y
+pnpm run test:perf
+pnpm run size
+```
+
+Windows 11 PowerShell equivalent:
+
+```powershell
+pnpm run build
+pnpm run test:e2e
+pnpm run test:a11y
+pnpm run test:perf
+pnpm run size
+```
+
+The E2E gate covers Atlas search/detail/submission, Observatory dashboard/traces/anomalies, and Lab connection/tool-contract flows. The accessibility gate runs axe WCAG 2.0/2.1 A and AA checks on each home surface. The performance gate records navigation timing smoke thresholds for each built surface. The size gate enforces raw and gzip budgets for UI bundles and publishable package `dist/` outputs.
 
 ## Security Regression Coverage
 
