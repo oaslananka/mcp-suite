@@ -21,6 +21,16 @@ pnpm --filter @oaslananka/lab dev
 pnpm --filter @oaslananka/lab exec electron-builder --dir
 ```
 
+## Playground
+
+For a local demo beside seeded Atlas and Observatory data, run the workspace [local playground](../../docs/guide/playground.md):
+
+```bash
+pnpm build
+pnpm run playground:seed
+pnpm --filter @oaslananka/lab dev
+```
+
 ## Core Features
 
 - saved MCP connections

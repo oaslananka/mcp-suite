@@ -2,6 +2,8 @@
 
 This walkthrough brings up Atlas and Observatory locally, then shows how Sentinel and Composer fit into a typical operator workflow.
 
+For a seeded demo path that includes Atlas, Observatory, and Lab, use the [local playground](./playground.md).
+
 ## 1. Build the workspace
 
 ```bash

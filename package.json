@@ -12,6 +12,9 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "playground:seed": "node scripts/seed-playground-data.mjs",
+    "playground:atlas": "pnpm --filter @oaslananka/atlas exec node dist/cli.js serve --db ../../data/playground/atlas.sqlite --port 4003",
+    "playground:observatory": "pnpm --filter @oaslananka/observatory exec node dist/cli.js serve --db ../../data/playground/observatory.sqlite --port 4006",
     "test:workspace": "turbo run test",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test": "pnpm run test:workspace && pnpm run test:integration",
@@ -53,7 +56,8 @@
       "lodash": "^4.18.1",
       "postcss": "^8.5.14",
       "qs": "^6.15.2",
-      "tar": "^7.5.13"
+      "tar": "^7.5.13",
+      "tmp": "^0.2.7"
     },
     "onlyBuiltDependencies": [
       "better-sqlite3",

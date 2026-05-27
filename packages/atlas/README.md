@@ -23,6 +23,16 @@ curl http://127.0.0.1:4003/api/servers?q=github
 curl http://127.0.0.1:4003/api/trending
 ```
 
+## Playground
+
+For a seeded local demo, run the workspace [local playground](../../docs/guide/playground.md):
+
+```bash
+pnpm build
+pnpm run playground:seed
+pnpm run playground:atlas
+```
+
 ## Core Features
 
 - searchable MCP server catalog
