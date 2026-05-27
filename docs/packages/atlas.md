@@ -27,6 +27,16 @@ atlas serve --db ./data/atlas.sqlite --port 4003
 atlas search github --verified
 ```
 
+## Playground
+
+Use the [local playground guide](../guide/playground.md) to seed the Atlas catalog and run the UI at [http://localhost:4003](http://localhost:4003):
+
+```bash
+pnpm build
+pnpm run playground:seed
+pnpm run playground:atlas
+```
+
 ## Troubleshooting
 
 - Seed the catalog before opening the UI if you want meaningful search and trending results on first launch.

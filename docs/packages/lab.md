@@ -26,6 +26,16 @@ pnpm --filter @oaslananka/lab build
 pnpm --filter @oaslananka/lab exec electron-builder --linux
 ```
 
+## Playground
+
+Use the [local playground guide](../guide/playground.md) to run Lab beside the seeded Atlas and Observatory surfaces:
+
+```bash
+pnpm build
+pnpm run playground:seed
+pnpm --filter @oaslananka/lab dev
+```
+
 ## Troubleshooting
 
 - Renderer code should only use the preload surface, never direct `ipcRenderer` access.

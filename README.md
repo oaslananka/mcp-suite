@@ -66,6 +66,25 @@ Compared with one-off MCP utilities, the packages here are designed to compose: 
 
 ![MCP Lab desktop screenshot](./assets/lab.png)
 
+## Local Playground
+
+The reproducible demo path is a local playground with seeded Atlas and Observatory data:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm build
+pnpm run playground:seed
+pnpm run playground:atlas
+```
+
+Then start Observatory in another terminal:
+
+```bash
+pnpm run playground:observatory
+```
+
+Open Atlas at [http://localhost:4003](http://localhost:4003), Observatory at [http://localhost:4006](http://localhost:4006), and Lab with `pnpm --filter @oaslananka/lab dev`. Full steps live in the [local playground guide](./docs/guide/playground.md).
+
 ## Quick Start
 
 ```bash

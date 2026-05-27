@@ -23,6 +23,16 @@ curl http://127.0.0.1:4006/api/dashboard
 curl http://127.0.0.1:4006/api/anomalies
 ```
 
+## Playground
+
+For a seeded local demo, run the workspace [local playground](../../docs/guide/playground.md):
+
+```bash
+pnpm build
+pnpm run playground:seed
+pnpm run playground:observatory
+```
+
 ## Core Features
 
 - SQLite-backed metric and span storage

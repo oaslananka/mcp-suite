@@ -27,6 +27,16 @@ observatory metrics latency --minutes 60
 observatory baseline latency --days 7
 ```
 
+## Playground
+
+Use the [local playground guide](../guide/playground.md) to seed Observatory metrics, traces, and alerts, then run the dashboard at [http://localhost:4006](http://localhost:4006):
+
+```bash
+pnpm build
+pnpm run playground:seed
+pnpm run playground:observatory
+```
+
 ## Troubleshooting
 
 - Rebuild the package if the dashboard UI is missing from `dist/ui`.
