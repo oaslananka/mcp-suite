@@ -1,4 +1,4 @@
-FROM node:24-alpine AS builder
+FROM node:24-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14 AS builder
 
 WORKDIR /workspace
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
@@ -14,7 +14,9 @@ COPY packages/sentinel ./packages/sentinel
 
 RUN pnpm turbo run build --filter=@oaslananka/sentinel
 
-FROM node:24-alpine AS runtime
+FROM node:24-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14 AS runtime
+
+LABEL org.opencontainers.image.source="https://github.com/oaslananka/mcp-suite"
 
 RUN apk add --no-cache dumb-init procps
 WORKDIR /app

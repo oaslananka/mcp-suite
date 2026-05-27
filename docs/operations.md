@@ -10,6 +10,7 @@ Protected `main` required check-run names:
 | ------------------------------------ | --------------------------------------------- |
 | Format, Lint, Typecheck, Test, Build | CI / quality                                  |
 | Docker Smoke                         | CI / docker-smoke                             |
+| Container Validate (`<package>`)     | Containers / validate                         |
 | Analyze JavaScript and TypeScript    | CodeQL / analyze                              |
 | Review Thread Gate                   | Review Thread Gate / review-thread            |
 | actionlint, zizmor, gitleaks         | Workflow Lint And Secret Scan / workflow-lint |
@@ -31,3 +32,6 @@ Expected secret names are tied to their matching surface only. Do not reuse pack
 ## Docker
 
 Dockerfiles and compose files target Node.js 24 LTS. Production compose health checks exercise `/health` only and do not require mutation API credentials.
+
+Container image names, digest update rules, GHCR tags, and SBOM/provenance
+verification commands live in [containers.md](./containers.md).

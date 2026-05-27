@@ -54,7 +54,7 @@ services:
 
   # Demo servers for testing
   demo-github-mcp:
-    image: node:24-alpine
+    image: node:24-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14
     command: sh -c "npx -y @modelcontextprotocol/server-github"
     ports:
       - "3001:3000"
@@ -62,13 +62,13 @@ services:
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PAT:-}
 
   demo-jira-mcp:
-    image: node:24-alpine
+    image: node:24-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14
     command: sh -c "echo 'Mock Jira MCP' && sleep infinity"
     ports:
       - "3002:3000"
 
   demo-slack-mcp:
-    image: node:24-alpine
+    image: node:24-alpine@sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14
     command: sh -c "npx -y @modelcontextprotocol/server-slack"
     ports:
       - "3003:3000"
