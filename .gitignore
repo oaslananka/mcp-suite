@@ -9,6 +9,7 @@ packages/*/test-results/
 apps/lab/release/
 .mcp-registry-release/
 .jules-ci/
+.codex-checkpoints/
 .agent/
 .cursor/
 .claude/

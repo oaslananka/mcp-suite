@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { ChildProcess } from "child_process";
 import { spawn, spawnSync } from "child_process";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { win32 } from "node:path";
 import { MCPClient, StdioTransport, StreamableHTTPTransport } from "@oaslananka/shared";
 import type { ServerCapabilities } from "@oaslananka/shared";
 import { MockEngine } from "../../lib/mockEngine.js";
@@ -238,9 +238,10 @@ function createTransport(opts: ConnectServerOptions): StdioTransport | Streamabl
   if (opts.type === "stdio" && opts.command) {
     const originalCommand = opts.command.trim();
     assertAllowedStdioCommand(originalCommand);
-    const command = resolveStdioCommand(opts.command);
+    const platform = process.platform;
+    const command = resolveStdioCommand(opts.command, platform, process.env);
     const args = opts.args ?? [];
-    const env = withWindowsCommandPath(process.env);
+    const env = withWindowsCommandPath(process.env, platform);
 
     try {
       activeProcess = spawn(command, args, {
@@ -290,8 +291,12 @@ function assertAllowedStdioCommand(command: string): void {
   }
 }
 
-function resolveStdioCommand(command: string): string {
-  if (process.platform !== "win32") {
+export function resolveStdioCommand(
+  command: string,
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env
+): string {
+  if (platform !== "win32") {
     return command;
   }
 
@@ -299,7 +304,7 @@ function resolveStdioCommand(command: string): string {
   const lower = normalized.toLowerCase();
 
   if (lower === "npx" || lower === "npm" || lower === "pnpm") {
-    const resolved = resolveWindowsPackageManagerCommand(lower);
+    const resolved = resolveWindowsPackageManagerCommand(lower, env);
     if (resolved) {
       return resolved;
     }
@@ -308,7 +313,10 @@ function resolveStdioCommand(command: string): string {
   return normalized;
 }
 
-function resolveWindowsPackageManagerCommand(name: string): string | undefined {
+function resolveWindowsPackageManagerCommand(
+  name: string,
+  env: NodeJS.ProcessEnv
+): string | undefined {
   const whereResult = spawnSync("where.exe", [`${name}.cmd`], {
     windowsHide: true,
     encoding: "utf8",
@@ -323,34 +331,39 @@ function resolveWindowsPackageManagerCommand(name: string): string | undefined {
   }
 
   const candidates = [
-    join(process.env["ProgramFiles"] ?? "C:\\Program Files", "nodejs", `${name}.cmd`),
-    join(process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "nodejs", `${name}.cmd`),
-    join(process.env["LOCALAPPDATA"] ?? "", "Programs", "nodejs", `${name}.cmd`),
-    join(process.env["APPDATA"] ?? "", "npm", `${name}.cmd`),
+    win32.join(env["ProgramFiles"] ?? "C:\\Program Files", "nodejs", `${name}.cmd`),
+    win32.join(env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "nodejs", `${name}.cmd`),
+    win32.join(env["LOCALAPPDATA"] ?? "", "Programs", "nodejs", `${name}.cmd`),
+    win32.join(env["APPDATA"] ?? "", "npm", `${name}.cmd`),
   ];
 
   return candidates.find((candidate) => candidate.length > 0 && existsSync(candidate));
 }
 
-function withWindowsCommandPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  if (process.platform !== "win32") {
+export function withWindowsCommandPath(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform
+): NodeJS.ProcessEnv {
+  if (platform !== "win32") {
     return env;
   }
 
   const pathKey = Object.keys(env).find((key) => key.toLowerCase() === "path") ?? "Path";
   const currentPath = env[pathKey] ?? "";
   const extras = [
-    join(process.env["ProgramFiles"] ?? "C:\\Program Files", "nodejs"),
-    join(process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "nodejs"),
-    join(process.env["LOCALAPPDATA"] ?? "", "Programs", "nodejs"),
-    join(process.env["APPDATA"] ?? "", "npm"),
+    win32.join(env["ProgramFiles"] ?? "C:\\Program Files", "nodejs"),
+    win32.join(env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "nodejs"),
+    win32.join(env["LOCALAPPDATA"] ?? "", "Programs", "nodejs"),
+    win32.join(env["APPDATA"] ?? "", "npm"),
   ].filter((part) => part.length > 0);
 
-  const merged = Array.from(new Set([...extras, ...currentPath.split(";").filter(Boolean)]));
+  const merged = Array.from(
+    new Set([...extras, ...currentPath.split(win32.delimiter).filter(Boolean)])
+  );
 
   return {
     ...env,
-    [pathKey]: merged.join(";"),
+    [pathKey]: merged.join(win32.delimiter),
   };
 }
 

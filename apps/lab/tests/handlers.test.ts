@@ -322,18 +322,16 @@ describe("registerHandlers", () => {
     expect(spawnMock).not.toHaveBeenCalled();
   });
 
-  it("uses resolved Windows .cmd executables without shell command lines", async () => {
-    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+  it("spawns package commands without shell command lines", async () => {
+    const windowsNpxPath = "C:\\\\Program Files\\\\nodejs\\\\npx.cmd";
     client.connect.mockResolvedValue({
       serverInfo: { name: "Local", version: "1.0.0" },
       capabilities: {},
     });
     spawnSyncMock.mockReturnValue({
-      stdout: "C:\\\\Program Files\\\\nodejs\\\\npx.cmd\r\n",
+      stdout: `${windowsNpxPath}\r\n`,
     });
-    existsSyncMock.mockImplementation(
-      (path: string) => path === "C:\\\\Program Files\\\\nodejs\\\\npx.cmd"
-    );
+    existsSyncMock.mockImplementation((path: string) => path === windowsNpxPath);
     spawnMock.mockReturnValue({
       stdout: {},
       stdin: {},
@@ -359,13 +357,16 @@ describe("registerHandlers", () => {
 
     expect(result).toMatchObject({ success: true });
     expect(spawnMock).toHaveBeenCalledWith(
-      "C:\\\\Program Files\\\\nodejs\\\\npx.cmd",
+      process.platform === "win32" ? windowsNpxPath : "npx",
       ["-y", "@oaslananka/server", "--name", "hello & goodbye"],
       expect.objectContaining({
         env: expect.any(Object),
         windowsHide: true,
       })
     );
+    if (process.platform !== "win32") {
+      expect(spawnSyncMock).not.toHaveBeenCalled();
+    }
     expect(spawnMock.mock.calls[0]?.[2]).not.toHaveProperty("shell", true);
   });
 

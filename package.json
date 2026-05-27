@@ -28,7 +28,7 @@
     "validate:smithery": "node scripts/validate-smithery.mjs",
     "validate:registry": "node scripts/validate-mcp-registry.mjs",
     "release:dry-run": "node scripts/release-preflight.mjs && node scripts/release-state.mjs --dry-run",
-    "ci": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run security && pnpm run knip && pnpm run validate:registry && pnpm run validate:smithery && pnpm run build && pnpm run smoke:prod && pnpm run release:dry-run",
+    "ci": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test:coverage && pnpm run security && pnpm run knip && pnpm run validate:registry && pnpm run validate:smithery && pnpm run build && pnpm run smoke:prod && pnpm run release:dry-run",
     "docs:api": "typedoc",
     "format": "prettier --write \"**/*.{ts,tsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yml,yaml}\"",
