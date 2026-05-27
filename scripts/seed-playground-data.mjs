@@ -34,7 +34,10 @@ async function importBuiltPackage(relativePath, packageName) {
 function seedAtlas(databasePath) {
   const db = new Database(databasePath);
   try {
-    new atlas.ServerStore(db).seed(atlas.SEED_SERVERS);
+    const store = new atlas.ServerStore(db);
+    db.transaction(() => {
+      store.seed(atlas.SEED_SERVERS);
+    })();
   } finally {
     db.close();
   }
@@ -43,7 +46,10 @@ function seedAtlas(databasePath) {
 function seedObservatoryDatabase(databasePath) {
   const db = new Database(databasePath);
   try {
-    seedObservatory(new observatory.SQLiteStore(db), db);
+    const store = new observatory.SQLiteStore(db);
+    db.transaction(() => {
+      seedObservatory(store, db);
+    })();
   } finally {
     db.close();
   }
