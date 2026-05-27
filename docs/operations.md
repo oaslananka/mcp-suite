@@ -14,7 +14,7 @@ Protected `main` required check-run names:
 | Review Thread Gate                   | Review Thread Gate / review-thread            |
 | actionlint, zizmor, gitleaks         | Workflow Lint And Secret Scan / workflow-lint |
 
-Release preflight runs inside the CI quality job, so it is covered by `Format, Lint, Typecheck, Test, Build`.
+Release preflight runs inside the CI quality job, so it is covered by `Format, Lint, Typecheck, Test, Build`. UI E2E, accessibility, performance, and size gates also run inside the CI quality job after the workspace build.
 
 Enable auto-delete for merged branches. Keep admin bypass limited to documented break-glass use.
 

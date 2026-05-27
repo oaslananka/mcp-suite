@@ -15,6 +15,9 @@
     "test:workspace": "turbo run test",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test": "pnpm run test:workspace && pnpm run test:integration",
+    "test:e2e": "playwright test --project=e2e",
+    "test:a11y": "playwright test --project=a11y",
+    "test:perf": "playwright test --project=perf",
     "test:workspace:coverage": "turbo run test -- --coverage",
     "test:integration:coverage": "vitest run --config vitest.integration.config.ts --coverage",
     "test:coverage": "pnpm run test:workspace:coverage && pnpm run test:integration:coverage && pnpm run check:shared-coverage",
@@ -28,10 +31,11 @@
     "validate:smithery": "node scripts/validate-smithery.mjs",
     "validate:registry": "node scripts/validate-mcp-registry.mjs",
     "release:dry-run": "node scripts/release-preflight.mjs && node scripts/release-state.mjs --dry-run",
-    "ci": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run security && pnpm run knip && pnpm run validate:registry && pnpm run validate:smithery && pnpm run build && pnpm run smoke:prod && pnpm run release:dry-run",
+    "ci": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run security && pnpm run knip && pnpm run validate:registry && pnpm run validate:smithery && pnpm run build && pnpm run test:e2e && pnpm run test:a11y && pnpm run test:perf && pnpm run size && pnpm run smoke:prod && pnpm run release:dry-run",
     "docs:api": "typedoc",
     "format": "prettier --write \"**/*.{ts,tsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yml,yaml}\"",
+    "size": "node scripts/check-size-budgets.mjs",
     "smoke:prod": "node scripts/smoke-prod-health.mjs",
     "clean": "turbo run clean && rimraf node_modules \"packages/*/node_modules\" \"packages/*/dist\" \"apps/*/node_modules\" \"apps/*/dist\" coverage test-results docs/api",
     "prepare": "husky",
@@ -53,7 +57,8 @@
       "lodash": "^4.18.1",
       "postcss": "^8.5.14",
       "qs": "^6.15.2",
-      "tar": "^7.5.13"
+      "tar": "^7.5.13",
+      "tmp": "^0.2.7"
     },
     "onlyBuiltDependencies": [
       "better-sqlite3",
@@ -64,7 +69,9 @@
     ]
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.11.3",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.60.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.0.0",
     "@typescript-eslint/eslint-plugin": "^8.60.0",

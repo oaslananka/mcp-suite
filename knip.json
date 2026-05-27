@@ -2,7 +2,11 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "workspaces": {
     ".": {
-      "entry": ["scripts/prepare-mcp-registry-publication.mjs"]
+      "entry": [
+        "scripts/prepare-mcp-registry-publication.mjs",
+        "scripts/serve-static.mjs",
+        "tests/ui-quality/**/*.ts"
+      ]
     },
     "packages/shared": {
       "ignoreDependencies": ["pino-pretty"]

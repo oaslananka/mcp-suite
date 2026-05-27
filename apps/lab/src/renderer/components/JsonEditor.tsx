@@ -1,5 +1,4 @@
 import type { CSSProperties, JSX } from "react";
-import { Editor } from "@monaco-editor/react";
 
 interface JsonEditorProps {
   height?: number;
@@ -18,21 +17,17 @@ export function JsonEditor({
 }: JsonEditorProps): JSX.Element {
   return (
     <section style={styles.wrapper}>
-      <div style={styles.label}>{label}</div>
-      <Editor
-        defaultLanguage="json"
-        height={height}
-        options={{
-          minimap: { enabled: false },
-          fontSize: 13,
-          wordWrap: "on",
-          readOnly,
-          scrollBeyondLastLine: false,
-        }}
-        theme="vs-light"
-        value={value}
-        onChange={(nextValue: string | undefined) => onChange?.(nextValue ?? "")}
-      />
+      <label style={styles.field}>
+        <span style={styles.label}>{label}</span>
+        <textarea
+          aria-label={label}
+          readOnly={readOnly}
+          spellCheck={false}
+          style={{ ...styles.editor, height }}
+          value={value}
+          onChange={(event) => onChange?.(event.target.value)}
+        />
+      </label>
     </section>
   );
 }
@@ -41,6 +36,22 @@ const styles = {
   wrapper: {
     display: "grid",
     gap: 8,
+  },
+  field: {
+    display: "grid",
+    gap: 8,
+  },
+  editor: {
+    border: "1px solid #cbd5e1",
+    borderRadius: 12,
+    color: "#0f172a",
+    fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
+    fontSize: 13,
+    lineHeight: 1.5,
+    padding: 12,
+    resize: "vertical",
+    tabSize: 2,
+    whiteSpace: "pre-wrap",
   },
   label: {
     fontWeight: 700,
