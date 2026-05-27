@@ -51,7 +51,7 @@ const styles = {
     padding: 12,
     resize: "vertical",
     tabSize: 2,
-    whiteSpace: "pre",
+    whiteSpace: "pre-wrap",
   },
   label: {
     fontWeight: 700,

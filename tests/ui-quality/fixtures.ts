@@ -175,7 +175,7 @@ async function mockAtlasApi(page: Page): Promise<void> {
     }
 
     if (url.pathname === "/api/submissions") {
-      const body = route.request().postDataJSON() as Partial<(typeof atlasServers)[number]>;
+      const body = (route.request().postDataJSON() ?? {}) as Partial<(typeof atlasServers)[number]>;
       await fulfillJson(route, {
         ...atlasServers[0],
         id: "submitted-server",

@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import path from "node:path";
 
 const HOST = "127.0.0.1";
+const MAX_PORT = 65_535;
 const CONTENT_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],
   [".html", "text/html; charset=utf-8"],
@@ -22,7 +23,7 @@ if (!directory || !portValue) {
 const root = path.resolve(directory);
 const port = Number.parseInt(portValue, 10);
 
-if (!Number.isInteger(port) || port <= 0) {
+if (!Number.isInteger(port) || port <= 0 || port > MAX_PORT) {
   throw new Error(`Invalid port: ${portValue}`);
 }
 
@@ -112,7 +113,10 @@ async function resolveIndex() {
 
 function isInsideRoot(candidate) {
   const relative = path.relative(root, candidate);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+  return (
+    relative === "" ||
+    (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+  );
 }
 
 function isMissingPathError(error) {
