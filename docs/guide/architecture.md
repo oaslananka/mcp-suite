@@ -1,5 +1,9 @@
 # Architecture
 
+Durable architecture choices are tracked in the
+[ADR index](../adr/index.md). This guide describes the current shape of the
+system; ADRs explain why the shape exists.
+
 ## Package dependency graph
 
 ```mermaid

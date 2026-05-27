@@ -26,6 +26,19 @@ pnpm run release:dry-run
 
 `pnpm run ci` combines the local gates used by CI. It does not hide failures.
 
+## Generated API Docs
+
+Run TypeDoc before changing exported TypeScript APIs:
+
+```bash
+pnpm docs:api
+```
+
+The generated `docs/api/` tree is ignored by git. The Docs workflow regenerates
+it in CI and uploads the verified output as an `api-docs-<commit-sha>` workflow
+artifact. See [docs/api-reference.md](./api-reference.md) for local and CI
+validation commands.
+
 ## Package Boundaries
 
 Use `pnpm --filter <workspace-name> <command>` for focused work. Shared protocol, transport, URL policy, testing, and logging helpers belong in `@oaslananka/shared`; package-specific API or UI behavior belongs in its package.
