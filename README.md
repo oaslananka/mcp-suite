@@ -119,6 +119,7 @@ More setup and workflow guidance lives in [docs/development.md](./docs/developme
 ## Contributing
 
 Contributions are welcome. Start with [CONTRIBUTING.md](./CONTRIBUTING.md), use Conventional Commits for user-visible changes, and keep GitHub Actions parity when adding validation steps.
+For issue triage, support, stale handling, labels, and maintainer response targets, see [docs/governance.md](./docs/governance.md).
 
 ## Roadmap
 
