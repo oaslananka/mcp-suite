@@ -99,6 +99,64 @@ jobs:
           pnpm run validate:smithery
           pnpm run release:dry-run
 
+  compatibility:
+    name: Compatibility (${{ matrix.surface }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - surface: ubuntu-24.04 / Node 24
+            os: ubuntu-24.04
+            node-version: 24
+            lab-build: false
+          - surface: windows-2025 / Node 24
+            os: windows-2025
+            node-version: 24
+            lab-build: false
+          - surface: macos-15 Lab Electron / Node 24
+            os: macos-15
+            node-version: 24
+            lab-build: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Format check
+        run: pnpm run format:check
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Test
+        run: pnpm run test
+
+      - name: Lab Electron build
+        if: ${{ matrix.lab-build }}
+        run: pnpm --filter @oaslananka/lab run build
+
   docker-smoke:
     name: Docker Smoke
     runs-on: ubuntu-24.04
