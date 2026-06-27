@@ -17,7 +17,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Scan for overlapping changes
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          npx -y --package=@google/jules-merge jules-merge scan --json '{"prs":[${{ github.event.pull_request.number }}],"repo":"${{ github.repository }}","base":"${{ github.event.pull_request.base.ref }}"}'
+          payload=$(jq -cn \
+            --argjson pr "$PR_NUMBER" \
+            --arg repo "$REPO" \
+            --arg base "$BASE_REF" \
+            '{prs: [$pr], repo: $repo, base: $base}')
+
+          npx -y \
+            --package=@google/jules-merge \
+            --package=@google/jules-sdk \
+            --package=@modelcontextprotocol/sdk \
+            jules-merge scan --json "$payload"

@@ -5,17 +5,17 @@ name: Fleet Analyze
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: "0 */6 * * *"
   workflow_dispatch:
     inputs:
       goal:
-        description: 'Path to goal file (or blank for all)'
+        description: "Path to goal file (or blank for all)"
         type: string
-        default: ''
+        default: ""
       milestone:
-        description: 'Milestone ID override'
+        description: "Milestone ID override"
         type: string
-        default: ''
+        default: ""
 
 concurrency:
   group: fleet-analyze
@@ -30,13 +30,21 @@ jobs:
       pull-requests: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - run: npx -y --package=@google/jules-fleet jules-fleet analyze --goal "${{ inputs.goal }}" --milestone "${{ inputs.milestone }}"
+          node-version: "22"
+      - name: Analyze fleet goals
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           FLEET_APP_ID: ${{ secrets.FLEET_APP_ID }}
           FLEET_APP_PRIVATE_KEY_BASE64: ${{ secrets.FLEET_APP_PRIVATE_KEY_BASE64 }}
           FLEET_APP_INSTALLATION_ID: ${{ secrets.FLEET_APP_INSTALLATION_ID }}
+          INPUT_GOAL: ${{ inputs.goal }}
+          INPUT_MILESTONE: ${{ inputs.milestone }}
+        run: |
+          npx -y --package=@google/jules-fleet jules-fleet analyze \
+            --goal "$INPUT_GOAL" \
+            --milestone "$INPUT_MILESTONE"

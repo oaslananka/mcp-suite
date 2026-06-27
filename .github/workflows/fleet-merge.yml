@@ -5,22 +5,22 @@ name: Fleet Merge
 
 on:
   schedule:
-    - cron: '0 */3 * * *'
+    - cron: "0 */3 * * *"
   workflow_dispatch:
     inputs:
       mode:
-        description: 'PR selection mode'
+        description: "PR selection mode"
         type: choice
         options:
           - label
           - fleet-run
-        default: 'label'
+        default: "label"
       fleet_run_id:
-        description: 'Fleet run ID (required for fleet-run mode)'
+        description: "Fleet run ID (required for fleet-run mode)"
         type: string
-        default: ''
+        default: ""
       redispatch:
-        description: 'Enable smart conflict resolution'
+        description: "Enable smart conflict resolution"
         type: boolean
         default: true
 
@@ -37,18 +37,28 @@ jobs:
       issues: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - run: |
-          REDISPATCH_FLAG="--redispatch"
-          if [ "${{ inputs.redispatch }}" = "false" ]; then
-            REDISPATCH_FLAG=""
-          fi
-          npx -y --package=@google/jules-fleet jules-fleet merge --mode ${{ inputs.mode || 'label' }} --run-id "${{ inputs.fleet_run_id }}" $REDISPATCH_FLAG
+          node-version: "22"
+      - name: Merge fleet pull requests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           FLEET_APP_ID: ${{ secrets.FLEET_APP_ID }}
           FLEET_APP_PRIVATE_KEY_BASE64: ${{ secrets.FLEET_APP_PRIVATE_KEY_BASE64 }}
           FLEET_APP_INSTALLATION_ID: ${{ secrets.FLEET_APP_INSTALLATION_ID }}
+          FLEET_MODE: ${{ inputs.mode || 'label' }}
+          FLEET_RUN_ID: ${{ inputs.fleet_run_id }}
+          FLEET_REDISPATCH: ${{ inputs.redispatch }}
+        run: |
+          redispatch_args=()
+          if [ "$FLEET_REDISPATCH" != "false" ]; then
+            redispatch_args+=("--redispatch")
+          fi
+
+          npx -y --package=@google/jules-fleet jules-fleet merge \
+            --mode "$FLEET_MODE" \
+            --run-id "$FLEET_RUN_ID" \
+            "${redispatch_args[@]}"
