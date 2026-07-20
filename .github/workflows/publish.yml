@@ -29,10 +29,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-toolchain
         with:
-          node-version: 24
           registry-url: https://registry.npmjs.org/
 
       - name: Verify release state

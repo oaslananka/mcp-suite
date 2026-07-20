@@ -5,11 +5,17 @@
   "description": "The missing infrastructure layer for the MCP ecosystem",
   "license": "Apache-2.0",
   "engines": {
-    "node": ">=24.0.0",
-    "pnpm": ">=10.0.0"
+    "node": "24.18.x",
+    "pnpm": "10.33.x"
   },
   "packageManager": "pnpm@10.33.0",
   "scripts": {
+    "preinstall": "node scripts/verify-toolchain.mjs --runtime",
+    "toolchain:test": "node --test scripts/automation-policy.test.mjs scripts/toolchain-contract.test.mjs scripts/native-module-check.test.mjs scripts/release-policy.test.mjs",
+    "toolchain:check:runtime": "node scripts/verify-toolchain.mjs --runtime",
+    "toolchain:check:repository": "node scripts/verify-toolchain.mjs --repository",
+    "toolchain:check:native": "node scripts/verify-native-modules.mjs",
+    "toolchain:check": "node scripts/verify-toolchain.mjs --all",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "playground:seed": "node scripts/seed-playground-data.mjs",
@@ -31,7 +37,7 @@
     "validate:smithery": "node scripts/validate-smithery.mjs",
     "validate:registry": "node scripts/validate-mcp-registry.mjs",
     "release:dry-run": "node scripts/release-preflight.mjs && node scripts/release-state.mjs --dry-run",
-    "ci": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test:coverage && pnpm run security && pnpm run knip && pnpm run validate:registry && pnpm run validate:smithery && pnpm run build && pnpm run smoke:prod && pnpm run release:dry-run",
+    "ci": "pnpm run toolchain:test && pnpm run toolchain:check && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test:coverage && pnpm run security && pnpm run knip && pnpm run validate:registry && pnpm run validate:smithery && pnpm run build && pnpm run smoke:prod && pnpm run release:dry-run",
     "docs:api": "typedoc",
     "format": "prettier --write \"**/*.{ts,tsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yml,yaml}\"",

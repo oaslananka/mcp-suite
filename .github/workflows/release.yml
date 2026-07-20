@@ -64,10 +64,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
-        with:
-          node-version: 24
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-toolchain
 
       - name: Build release assets
         shell: bash
@@ -76,10 +74,9 @@ jobs:
           TURBO_TELEMETRY_DISABLED: "1"
         run: |
           set -euo pipefail
-          corepack enable
-          corepack prepare pnpm@10.33.0 --activate
           pnpm install --frozen-lockfile --ignore-scripts
-          pnpm rebuild esbuild
+          pnpm rebuild better-sqlite3 esbuild
+          pnpm run toolchain:check:native
           pnpm --filter "./packages/*" run build
           mkdir -p artifacts/npm artifacts/provenance
           node scripts/pack-npm-artifacts.mjs artifacts/npm

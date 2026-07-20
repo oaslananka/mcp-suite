@@ -25,23 +25,26 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093
-        with:
-          version: 10.33.0
-          run_install: false
-
-      - name: Set up Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
-        with:
-          node-version: 24
-          cache: pnpm
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-toolchain
 
       - name: Install
         shell: bash
         run: |
           set -euo pipefail
-          pnpm install --frozen-lockfile
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm rebuild better-sqlite3 electron esbuild
+
+      - name: Verify native module ABI
+        shell: bash
+        run: pnpm run toolchain:check:native
+
+      - name: Verify toolchain contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run toolchain:test
+          pnpm run toolchain:check
 
       - name: Format check
         shell: bash
@@ -108,17 +111,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - surface: ubuntu-24.04 / Node 24
+          - surface: ubuntu-24.04 / Node 24.18.0
             os: ubuntu-24.04
-            node-version: 24
             lab-build: false
-          - surface: windows-2025 / Node 24
+          - surface: windows-2025 / Node 24.18.0
             os: windows-2025
-            node-version: 24
             lab-build: false
-          - surface: macos-15 Lab Electron / Node 24
+          - surface: macos-15 Lab Electron / Node 24.18.0
             os: macos-15
-            node-version: 24
             lab-build: true
     steps:
       - name: Checkout
@@ -126,20 +126,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093
-        with:
-          version: 10.33.0
-          run_install: false
-
-      - name: Set up Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: pnpm
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-toolchain
 
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts && pnpm rebuild better-sqlite3 electron esbuild
+
+      - name: Verify native module ABI
+        run: pnpm run toolchain:check:native
 
       - name: Format check
         run: pnpm run format:check

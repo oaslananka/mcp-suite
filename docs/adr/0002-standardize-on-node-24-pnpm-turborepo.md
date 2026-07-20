@@ -16,13 +16,18 @@ and Docker images.
 Use Node.js 24 as the supported runtime baseline, pnpm 10 as the package
 manager, and Turborepo as the workspace task runner.
 
-The root `package.json` declares the runtime and package-manager floor. CI and
-release workflows must use the same major versions.
+For monorepo development and automation, `.tool-versions` is the canonical
+machine-readable contract and currently selects Node.js `24.18.0` and pnpm
+`10.33.0`. The private root `package.json`, CI, Azure Pipelines, release jobs,
+and the devcontainer must validate against that exact contract. Publishable
+packages retain the broader Node 24 engine floor for consumers.
 
 ## Consequences
 
-- Contributors get one bootstrap path: enable Corepack, activate pnpm 10, and
-  install with the frozen lockfile.
+- Contributors get one preferred bootstrap path: run `mise install`, then install
+  with the frozen lockfile. Corepack remains available when the exact Node
+  runtime is already active.
+- Native modules are installed and smoke-tested under the canonical Node ABI.
 - CI can cache and execute workspace tasks consistently.
 - New package scripts should compose through existing root scripts unless a
   focused package command is clearer.

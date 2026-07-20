@@ -2,8 +2,8 @@
 
 ## Prerequisites
 
-- Node.js `>= 24`
-- pnpm `>= 10`
+- Node.js `>= 24` for package consumers
+- Node.js `24.18.0` and pnpm `10.33.0` for monorepo contributors, declared in `.tool-versions`
 - Docker, optional for local stack work
 
 ## Install individual packages
@@ -36,8 +36,10 @@ npm install -g @oaslananka/observatory
 ```bash
 git clone https://github.com/oaslananka/mcp-suite
 cd mcp-suite
-pnpm install --frozen-lockfile
-pnpm build
+mise install
+mise exec -- pnpm install --frozen-lockfile
+mise exec -- pnpm run toolchain:check:native
+mise exec -- pnpm build
 ```
 
 ## Full stack with Docker
@@ -50,3 +52,5 @@ Use `docker-compose.prod.yml` when you want the production-oriented composition 
 
 Published GHCR image names and digest verification commands are documented in
 [container operations](../containers.md).
+
+Contributor bootstrap and native ABI recovery procedures are documented in [Development](../development.md).

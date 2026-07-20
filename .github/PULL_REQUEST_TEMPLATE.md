@@ -10,10 +10,10 @@
 - [ ] Documentation update
 - [ ] Refactor / performance
 
-## Changeset
+## Release Notes
 
-- [ ] I have run `pnpm changeset` and added an appropriate changeset
-      (skip only for docs/chore with no user-visible change)
+- [ ] Commit messages follow Conventional Commits where release notes are required.
+- [ ] Release metadata remains managed exclusively by release-please manifest mode.
 
 ## Testing
 
