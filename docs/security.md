@@ -74,3 +74,11 @@ Approval events are append-only. SQLite triggers reject update and delete operat
 Idempotency keys are hashed together with the requester principal. A separate request fingerprint prevents an idempotency key from authorizing a different tool, input, approver, channel set, or upstream expiry. Channel delivery failure, missing adapters, cancellation, and timeout fail closed. Fail-open timeout behavior requires an explicit library-only opt-in and should not be enabled for production security boundaries.
 
 Treat approval capabilities as credentials. Provider adapters must avoid URLs, logs, telemetry fields, chat previews, and plaintext persistence. Prefer encrypted short-lived provider state and opaque callback identifiers. Protect the Sentinel SQLite file with restrictive filesystem permissions and encrypted storage; `secure_delete` does not remove historical bytes from backups, snapshots, or old WAL files.
+
+## Atlas MCP Health Probes
+
+Atlas health records must identify the exact MCP transport. Generic homepage checks and placeholder processes are not considered readiness evidence. HTTP checks reuse the shared SSRF-resistant fetch path with DNS pinning, no redirects, strict HTTPS, bounded bodies, timeout enforcement, and exact private-host opt-in. Authentication values are resolved at runtime from named environment variables and are never stored in the registry.
+
+Stdio checks require an absolute executable path that is present in the operator allowlist. Atlas passes an argument array directly with `shell: false`, bounds stdout, applies a deadline, and supplies only explicitly mapped environment variables. A process starting successfully is not enough: the probe must complete MCP initialization and any advertised capability verification.
+
+Health failures expose fixed categories and sanitized messages rather than raw URLs, credentials, command output, or provider errors. Registry quality scores reward only successful MCP readiness. Liveness without a valid handshake is displayed as degraded, not healthy.

@@ -2,9 +2,16 @@ import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import path from "node:path";
+import { isIP } from "node:net";
 import { assertPublicHttpUrl, UrlPolicyError } from "@oaslananka/shared";
 import { SEED_SERVERS } from "./seed.js";
-import { ServerStore } from "./ServerStore.js";
+import type {
+  MCPHealthConfig,
+  MCPHttpHealthConfig,
+  MCPStdioHealthConfig,
+  MCPServerRecord,
+  ServerStore,
+} from "./ServerStore.js";
 
 interface SubmissionPayload {
   name: string;
@@ -15,6 +22,7 @@ interface SubmissionPayload {
   installCommand?: string;
   transport?: Array<"stdio" | "http">;
   tags?: string[];
+  healthConfig?: MCPHealthConfig;
 }
 
 interface RegistryServerOptions {
@@ -118,7 +126,12 @@ export class RegistryServer {
         ...(tag ? { tag } : {}),
       });
       res.setHeader("content-type", "application/json; charset=utf-8");
-      res.end(JSON.stringify(result));
+      res.end(
+        JSON.stringify({
+          ...result,
+          items: result.items.map((record) => toPublicRecord(record)),
+        })
+      );
       return;
     }
 
@@ -130,7 +143,9 @@ export class RegistryServer {
 
     if (req.method === "GET" && url.pathname === "/api/trending") {
       res.setHeader("content-type", "application/json; charset=utf-8");
-      res.end(JSON.stringify({ items: this.store.getTrending() }));
+      res.end(
+        JSON.stringify({ items: this.store.getTrending().map((record) => toPublicRecord(record)) })
+      );
       return;
     }
 
@@ -167,7 +182,7 @@ export class RegistryServer {
       }
 
       res.setHeader("content-type", "application/json; charset=utf-8");
-      res.end(JSON.stringify(record));
+      res.end(JSON.stringify(toPublicRecord(record)));
       return;
     }
 
@@ -215,13 +230,14 @@ export class RegistryServer {
         tags: payload.tags ?? ["community"],
         installCommand: payload.installCommand ?? `npx -y ${payload.packageName}`,
         ...(payload.homepage ? { homepage: payload.homepage } : {}),
+        ...(payload.healthConfig ? { healthConfig: payload.healthConfig } : {}),
         license: "Apache-2.0",
         verified: false,
         downloads: 0,
         rating: 0,
       });
       res.writeHead(201, { "content-type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify(record));
+      res.end(JSON.stringify(toPublicRecord(record)));
     } catch (error) {
       if (error instanceof BodyTooLargeError) {
         res.writeHead(413, { "content-type": "application/json; charset=utf-8" });
@@ -336,6 +352,15 @@ export class RegistryServer {
   }
 }
 
+type PublicMCPServerRecord = Omit<MCPServerRecord, "healthConfig">;
+
+function toPublicRecord({
+  healthConfig: _healthConfig,
+  ...record
+}: MCPServerRecord): PublicMCPServerRecord {
+  return record;
+}
+
 class BodyTooLargeError extends Error {}
 
 async function validateSubmission(payload: SubmissionPayload): Promise<string | null> {
@@ -372,7 +397,120 @@ async function validateSubmission(payload: SubmissionPayload): Promise<string | 
     }
   }
 
+  if (payload.healthConfig) {
+    const probeError = await validateHealthConfig(
+      payload.healthConfig,
+      payload.transport ?? ["stdio"]
+    );
+    if (probeError) return probeError;
+  }
+
   return null;
+}
+
+async function validateHealthConfig(
+  config: MCPHealthConfig,
+  transports: Array<"stdio" | "http">
+): Promise<string | null> {
+  if (!config || typeof config !== "object" || !transports.includes(config.transport)) {
+    return "Health probe transport must match a submitted server transport";
+  }
+  return config.transport === "http"
+    ? validateHttpHealthConfig(config)
+    : validateStdioHealthConfig(config);
+}
+
+async function validateHttpHealthConfig(config: MCPHttpHealthConfig): Promise<string | null> {
+  if (typeof config.url !== "string") return "HTTP health probe URL is required";
+  if (
+    config.trustedPrivateHosts !== undefined &&
+    (!Array.isArray(config.trustedPrivateHosts) ||
+      config.trustedPrivateHosts.some((host) => !isExactHost(host)))
+  ) {
+    return "Trusted private hosts must contain exact hostnames or IP literals";
+  }
+  if (!validPositiveOptional(config.timeoutMs) || !validPositiveOptional(config.maxResponseBytes)) {
+    return "HTTP health probe limits must be positive integers";
+  }
+  if (!validEnvironmentMapping(config.headersFromEnv, true)) {
+    return "HTTP health probe headersFromEnv mapping is invalid";
+  }
+
+  try {
+    await assertPublicHttpUrl(config.url, {
+      label: "Submission MCP endpoint URL policy",
+      resolveDns: false,
+      ...(config.trustedPrivateHosts ? { trustedPrivateHosts: config.trustedPrivateHosts } : {}),
+    });
+  } catch (error) {
+    if (error instanceof UrlPolicyError) return error.message;
+    throw error;
+  }
+  return null;
+}
+
+function validateStdioHealthConfig(config: MCPStdioHealthConfig): string | null {
+  if (typeof config.command !== "string" || !path.isAbsolute(config.command)) {
+    return "Stdio health probe command must be an absolute executable path";
+  }
+  if (
+    !Array.isArray(config.args) ||
+    config.args.some((argument) => typeof argument !== "string" || argument.includes("\0"))
+  ) {
+    return "Stdio health probe args must be a string array";
+  }
+  if (!validPositiveOptional(config.timeoutMs) || !validPositiveOptional(config.maxOutputBytes)) {
+    return "Stdio health probe limits must be positive integers";
+  }
+  if (!validEnvironmentMapping(config.envFrom, false)) {
+    return "Stdio health probe envFrom mapping is invalid";
+  }
+  return null;
+}
+
+function validPositiveOptional(value: number | undefined): boolean {
+  return value === undefined || (Number.isInteger(value) && value > 0);
+}
+
+const RESERVED_HEALTH_HEADERS = new Set([
+  "host",
+  "content-length",
+  "content-type",
+  "accept",
+  "mcp-protocol-version",
+  "mcp-session-id",
+]);
+
+function validEnvironmentMapping(
+  mapping: Record<string, string> | undefined,
+  allowHeaderNames: boolean
+): boolean {
+  if (mapping === undefined) return true;
+  if (!mapping || typeof mapping !== "object" || Array.isArray(mapping)) return false;
+  return Object.entries(mapping).every(
+    ([target, source]) =>
+      (allowHeaderNames
+        ? /^[A-Za-z0-9-]{1,100}$/.test(target) && !RESERVED_HEALTH_HEADERS.has(target.toLowerCase())
+        : /^[A-Za-z_][A-Za-z0-9_]*$/.test(target)) &&
+      typeof source === "string" &&
+      /^[A-Za-z_][A-Za-z0-9_]*$/.test(source)
+  );
+}
+
+function isExactHost(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const normalized = value.trim().replace(/^\[/, "").replace(/\]$/, "").toLowerCase();
+  if (!normalized || normalized.length > 253) return false;
+  if (isIP(normalized) !== 0) return true;
+  if (normalized.includes(":") || normalized.includes("*") || normalized.includes("/")) {
+    return false;
+  }
+  return normalized
+    .split(".")
+    .every(
+      (label) =>
+        label.length >= 1 && label.length <= 63 && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label)
+    );
 }
 
 function resolveSafeAssetPath(rootDir: string, pathname: string): string | null {

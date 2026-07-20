@@ -364,6 +364,173 @@ describe("RegistryServer", () => {
     expect(oversized.result().statusCode).toBe(413);
   });
 
+  it("accepts explicit MCP probe configuration and rejects unsafe or mismatched probes", async () => {
+    const store = new ServerStore(new Database(":memory:"));
+    const server = new RegistryServer(store, {
+      submissionToken: "atlas-token",
+      submissionBodyLimitBytes: 4_096,
+    });
+
+    const valid = createResponseCollector();
+    await invokeHandle(
+      server,
+      createJsonRequest(
+        "POST",
+        "/api/submissions",
+        {
+          name: "Remote MCP",
+          packageName: "@example/remote-mcp",
+          description: "Explicit MCP endpoint",
+          transport: ["http"],
+          healthConfig: {
+            transport: "http",
+            url: "https://mcp.example.com/mcp",
+            headersFromEnv: { authorization: "REMOTE_MCP_TOKEN" },
+          },
+        },
+        submissionHeaders
+      ),
+      valid.res
+    );
+    expect(valid.result().statusCode).toBe(201);
+    const validPayload = JSON.parse(valid.result().body) as { id: string; healthConfig?: unknown };
+    expect(validPayload.healthConfig).toBeUndefined();
+    expect(store.findById(validPayload.id)?.healthConfig).toMatchObject({
+      transport: "http",
+      url: "https://mcp.example.com/mcp",
+      headersFromEnv: { authorization: "REMOTE_MCP_TOKEN" },
+    });
+
+    const detail = createResponseCollector();
+    await invokeHandle(
+      server,
+      { method: "GET", url: `/api/servers/${validPayload.id}` },
+      detail.res
+    );
+    expect(JSON.parse(detail.result().body)).not.toHaveProperty("healthConfig");
+
+    const search = createResponseCollector();
+    await invokeHandle(server, { method: "GET", url: "/api/servers?q=remote%20mcp" }, search.res);
+    const searchPayload = JSON.parse(search.result().body) as {
+      items: Array<{ id: string; healthConfig?: unknown }>;
+    };
+    expect(searchPayload.items).toEqual([expect.objectContaining({ id: validPayload.id })]);
+    expect(searchPayload.items[0]?.healthConfig).toBeUndefined();
+
+    store.update(validPayload.id, { verified: true, downloads: 1_000_000 });
+    const trending = createResponseCollector();
+    await invokeHandle(server, { method: "GET", url: "/api/trending" }, trending.res);
+    const trendingPayload = JSON.parse(trending.result().body) as {
+      items: Array<{ id: string; healthConfig?: unknown }>;
+    };
+    const trendingRecord = trendingPayload.items.find((item) => item.id === validPayload.id);
+    expect(trendingRecord).toBeDefined();
+    expect(trendingRecord?.healthConfig).toBeUndefined();
+
+    const privateTarget = createResponseCollector();
+    await invokeHandle(
+      server,
+      createJsonRequest(
+        "POST",
+        "/api/submissions",
+        {
+          name: "Private Probe",
+          packageName: "@example/private-probe",
+          description: "Unsafe endpoint",
+          transport: ["http"],
+          healthConfig: { transport: "http", url: "https://127.0.0.1/mcp" },
+        },
+        submissionHeaders
+      ),
+      privateTarget.res
+    );
+    expect(privateTarget.result().statusCode).toBe(400);
+
+    const malformedTrustPolicy = createResponseCollector();
+    await invokeHandle(
+      server,
+      createJsonRequest(
+        "POST",
+        "/api/submissions",
+        {
+          name: "Malformed Trust Policy",
+          packageName: "@example/malformed-trust-policy",
+          description: "Invalid trusted host shape",
+          transport: ["http"],
+          healthConfig: {
+            transport: "http",
+            url: "https://127.0.0.1/mcp",
+            trustedPrivateHosts: "127.0.0.1",
+          },
+        },
+        submissionHeaders
+      ),
+      malformedTrustPolicy.res
+    );
+    expect(malformedTrustPolicy.result().statusCode).toBe(400);
+
+    const reservedHeader = createResponseCollector();
+    await invokeHandle(
+      server,
+      createJsonRequest(
+        "POST",
+        "/api/submissions",
+        {
+          name: "Reserved Header",
+          packageName: "@example/reserved-header",
+          description: "Invalid transport header override",
+          transport: ["http"],
+          healthConfig: {
+            transport: "http",
+            url: "https://mcp.example.com/mcp",
+            headersFromEnv: { Host: "REMOTE_MCP_TOKEN" },
+          },
+        },
+        submissionHeaders
+      ),
+      reservedHeader.res
+    );
+    expect(reservedHeader.result().statusCode).toBe(400);
+
+    const relativeCommand = createResponseCollector();
+    await invokeHandle(
+      server,
+      createJsonRequest(
+        "POST",
+        "/api/submissions",
+        {
+          name: "Relative Command",
+          packageName: "@example/relative-command",
+          description: "Unsafe command",
+          transport: ["stdio"],
+          healthConfig: { transport: "stdio", command: "node", args: ["server.js"] },
+        },
+        submissionHeaders
+      ),
+      relativeCommand.res
+    );
+    expect(relativeCommand.result().statusCode).toBe(400);
+
+    const mismatched = createResponseCollector();
+    await invokeHandle(
+      server,
+      createJsonRequest(
+        "POST",
+        "/api/submissions",
+        {
+          name: "Mismatched",
+          packageName: "@example/mismatched",
+          description: "Mismatched transport",
+          transport: ["stdio"],
+          healthConfig: { transport: "http", url: "https://mcp.example.com/mcp" },
+        },
+        submissionHeaders
+      ),
+      mismatched.res
+    );
+    expect(mismatched.result().statusCode).toBe(400);
+  });
+
   it("prunes stale submission rate-limit entries before recording new submissions", async () => {
     const store = new ServerStore(new Database(":memory:"));
     const server = new RegistryServer(store, {

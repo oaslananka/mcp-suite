@@ -296,3 +296,32 @@ code {
     padding: 18px 14px 42px;
   }
 }
+
+.tag.health-reachable,
+.tag.health-ready,
+.tag.health-verified {
+  background: rgba(42, 135, 87, 0.14);
+  color: #155c3b;
+}
+
+.tag.health-unreachable,
+.tag.health-not_ready,
+.tag.health-failed {
+  background: rgba(177, 56, 42, 0.13);
+  color: #8b2d21;
+}
+
+.tag.health-unknown,
+.tag.health-not_supported,
+.tag.health-not_checked {
+  background: rgba(94, 72, 46, 0.1);
+  color: var(--atlas-muted);
+}
+
+.health-failure {
+  border-left: 4px solid #b1382a;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(177, 56, 42, 0.08);
+  color: #76251d;
+}
