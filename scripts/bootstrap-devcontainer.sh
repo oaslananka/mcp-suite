@@ -2,10 +2,11 @@
 set -euo pipefail
 
 pnpm_version="$(awk '$1 == "pnpm" { print $2 }' .tool-versions)"
-test -n "${pnpm_version}"
+[[ -n "${pnpm_version}" ]]
 
 corepack enable
 corepack prepare "pnpm@${pnpm_version}" --activate
-node scripts/verify-toolchain.mjs --runtime
-pnpm install --frozen-lockfile
+TOOLCHAIN_PNPM_VERSION="${pnpm_version}" node scripts/verify-toolchain.mjs --runtime
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm rebuild better-sqlite3 electron esbuild
 pnpm run toolchain:check:native

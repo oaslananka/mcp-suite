@@ -17,7 +17,8 @@ export function readToolVersions(text) {
   const contract = {};
 
   for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.replace(/#.*$/, "").trim();
+    const commentIndex = rawLine.indexOf("#");
+    const line = (commentIndex === -1 ? rawLine : rawLine.slice(0, commentIndex)).trim();
     if (!line) continue;
 
     const [tool, version, ...extra] = line.split(/\s+/);
@@ -37,6 +38,21 @@ export function readToolVersions(text) {
   }
 
   return { node: contract.node, pnpm: contract.pnpm };
+}
+
+export function resolvePnpmVersion({ declaredVersion = "", userAgent = "" } = {}) {
+  const explicitVersion = normalizeVersion(declaredVersion);
+  if (explicitVersion) return explicitVersion;
+
+  for (const token of String(userAgent).trim().split(/\s+/)) {
+    if (token.startsWith("pnpm/") && token.length > "pnpm/".length) {
+      return normalizeVersion(token.slice("pnpm/".length));
+    }
+  }
+
+  throw new Error(
+    "Unable to determine pnpm version without executing a PATH-resolved command; run through pnpm or set TOOLCHAIN_PNPM_VERSION"
+  );
 }
 
 export function assertExactVersion(actual, expected, label) {
@@ -61,7 +77,7 @@ function findForbiddenRuntimeSelections(files) {
   return [...files.entries()]
     .filter(([, content]) => forbiddenPatterns.some((pattern) => pattern.test(content)))
     .map(([path]) => path)
-    .sort();
+    .sort((left, right) => left.localeCompare(right));
 }
 
 function findNoncanonicalPnpmSelections(files, expectedVersion) {
@@ -76,7 +92,7 @@ function findNoncanonicalPnpmSelections(files, expectedVersion) {
     }
   }
 
-  return mismatches.sort();
+  return mismatches.sort((left, right) => left.localeCompare(right));
 }
 
 export function validateRepositorySnapshot(snapshot, contract) {

@@ -1,30 +1,31 @@
-FROM node:24-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS builder
+FROM node@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS builder
 
 WORKDIR /workspace
 
-COPY .tool-versions .npmrc package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json tsconfig.base.json ./
+COPY .tool-versions package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json tsconfig.base.json ./
 COPY scripts/toolchain-contract.mjs scripts/verify-toolchain.mjs ./scripts/
 
 RUN set -eux; \
     corepack enable; \
     pnpm_version="$(awk '$1 == "pnpm" { print $2 }' .tool-versions)"; \
     corepack prepare "pnpm@${pnpm_version}" --activate; \
-    node scripts/verify-toolchain.mjs --runtime
+    TOOLCHAIN_PNPM_VERSION="${pnpm_version}" node scripts/verify-toolchain.mjs --runtime
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/forge/package.json ./packages/forge/
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts && \
+    pnpm rebuild better-sqlite3 esbuild
 
 COPY packages/shared ./packages/shared
 COPY packages/forge ./packages/forge
 
 RUN pnpm turbo run build --filter=@oaslananka/forge
 
-FROM node:24-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS runtime
+FROM node@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS runtime
 
 LABEL org.opencontainers.image.source="https://github.com/oaslananka/mcp-suite"
 
-RUN apk add --no-cache dumb-init wget procps
+RUN apk add --no-cache dumb-init procps wget
 WORKDIR /app
 
 RUN addgroup -g 1001 -S mcp && adduser -S -u 1001 -G mcp mcp

@@ -32,7 +32,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pnpm install --frozen-lockfile
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm rebuild better-sqlite3 electron esbuild
 
       - name: Verify native module ABI
         shell: bash
@@ -129,7 +130,7 @@ jobs:
         uses: ./.github/actions/setup-toolchain
 
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts && pnpm rebuild better-sqlite3 electron esbuild
 
       - name: Verify native module ABI
         run: pnpm run toolchain:check:native

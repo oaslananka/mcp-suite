@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
   assertExactVersion,
   readRepositoryContract,
+  resolvePnpmVersion,
   validateRepository,
 } from "./toolchain-contract.mjs";
 
@@ -19,27 +19,14 @@ if (!allowedModes.has(mode)) {
   process.exit(2);
 }
 
-function readPnpmVersion() {
-  const userAgent = process.env.npm_config_user_agent ?? "";
-  const match = userAgent.match(/\bpnpm\/([^\s]+)/);
-  if (match) return match[1];
-
-  const result = spawnSync("pnpm", ["--version"], {
-    encoding: "utf8",
-    shell: process.platform === "win32",
-  });
-  if (result.status !== 0) {
-    const detail = (result.stderr || result.stdout || "pnpm is unavailable").trim();
-    throw new Error(`Unable to determine pnpm version: ${detail}`);
-  }
-  return result.stdout.trim();
-}
-
 try {
   const contract = readRepositoryContract(rootDir);
 
   if (mode === "--all" || mode === "--runtime") {
-    const pnpmVersion = readPnpmVersion();
+    const pnpmVersion = resolvePnpmVersion({
+      declaredVersion: process.env.TOOLCHAIN_PNPM_VERSION,
+      userAgent: process.env.npm_config_user_agent,
+    });
     assertExactVersion(process.version, contract.node, "Node.js");
     assertExactVersion(pnpmVersion, contract.pnpm, "pnpm");
     console.log(

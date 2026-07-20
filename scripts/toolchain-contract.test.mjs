@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   assertExactVersion,
   readToolVersions,
+  resolvePnpmVersion,
   validateRepositorySnapshot,
 } from "./toolchain-contract.mjs";
 
@@ -14,6 +15,30 @@ test("readToolVersions parses the canonical node and pnpm versions", () => {
     node: "24.18.0",
     pnpm: "10.33.0",
   });
+});
+
+test("resolvePnpmVersion prefers an explicit trusted version", () => {
+  assert.equal(
+    resolvePnpmVersion({
+      declaredVersion: "10.33.0",
+      userAgent: "pnpm/99.0.0 npm/? node/v24.18.0 linux x64",
+    }),
+    "10.33.0"
+  );
+});
+
+test("resolvePnpmVersion reads pnpm from the lifecycle user agent", () => {
+  assert.equal(
+    resolvePnpmVersion({ userAgent: "pnpm/10.33.0 npm/? node/v24.18.0 linux x64" }),
+    "10.33.0"
+  );
+});
+
+test("resolvePnpmVersion refuses to search the process PATH", () => {
+  assert.throws(
+    () => resolvePnpmVersion({}),
+    /Unable to determine pnpm version without executing a PATH-resolved command/
+  );
 });
 
 test("assertExactVersion reports the actual and expected versions", () => {
