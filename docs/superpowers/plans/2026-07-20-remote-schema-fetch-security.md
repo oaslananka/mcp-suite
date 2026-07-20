@@ -9,5 +9,5 @@
 - [x] Add exact trusted-private-host CLI and environment configuration.
 - [x] Document the default-deny remote schema policy and private-network exception.
 - [x] Run full uncached monorepo CI and security validation.
-- [ ] Push the branch and open a PR linked to issue #37.
+- [x] Push the branch and open a PR linked to issue #37.
 - [ ] Review all bot and agent findings, resolve actionable comments, and merge after required checks pass.
