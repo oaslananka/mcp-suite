@@ -65,7 +65,7 @@ When fingerprinting is enabled, Sentinel stores only a short SHA-256 marker such
 
 JSON and CSV exports are generated from remediated records. CSV output applies RFC 4180 escaping and prefixes spreadsheet formula cells to prevent formula execution.
 
-The bundled `better-sqlite3` driver does not transparently encrypt the database. Store the database on an encrypted volume or use a separately validated SQLCipher-compatible deployment. Restrict the database directory to the Sentinel service account and keep any encryption key outside the database and command-line arguments. See [Security](../../docs/security.md#sentinel-audit-persistence).
+The bundled `better-sqlite3` driver does not transparently encrypt the database. Store the database on an encrypted volume or use a separately validated SQLCipher-compatible deployment. Restrict the database directory to the Sentinel service account and keep any encryption key outside the database and command-line arguments. Sentinel enables SQLite `secure_delete`, but historical WAL files, snapshots, and backups can still retain pre-remediation bytes; rotate exposed credentials and retire old copies during the upgrade procedure. See [Security](../../docs/security.md#sentinel-audit-persistence).
 
 ## Core Features
 

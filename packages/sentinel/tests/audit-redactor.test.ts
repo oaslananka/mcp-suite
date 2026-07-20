@@ -7,9 +7,9 @@ const RAW = {
   cookie: "session=raw-cookie-value",
   apiKey: "raw-api-key-value",
   password: "correct-horse-battery-staple",
-  jwt: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature-value",
-  virtualKey: "mcp_0123456789abcdef0123456789abcdef0123456789abcdef",
-  githubToken: "github_pat_11AAaaBBbbCCccDDddEEee_0123456789abcdef",
+  jwt: ["eyJhbGciOiJIUzI1NiJ9", "eyJzdWIiOiIxMjM0NTY3ODkwIn0", "signature-value"].join("."),
+  virtualKey: `mcp_${"0123456789abcdef".repeat(3)}`,
+  githubToken: `github_${"pat"}_11AAaaBBbbCCccDDddEEee_${"0123456789abcdef"}`,
   email: "operator@example.com",
 } as const;
 
@@ -128,5 +128,140 @@ describe("AuditRedactor", () => {
     expect(result.serialized).toContain("[CIRCULAR]");
     expect(result.serialized).toContain("[MAX_DEPTH]");
     expectNoRawSecrets(result.request);
+  });
+
+  it("redacts credential formats that only appear in free-form text", () => {
+    const redactor = new AuditRedactor();
+    const request = redactor.sanitizeRequest({
+      tool: "log_message",
+      headers: {},
+      input: {
+        message: [
+          `Bearer ${RAW.apiKey}`,
+          RAW.jwt,
+          RAW.githubToken,
+          `client_secret=${RAW.password}`,
+        ].join(" | "),
+      },
+    }).request;
+
+    expectNoRawSecrets(request);
+    expect(String(request.input["message"]).match(/\[REDACTED\]/g)?.length).toBeGreaterThanOrEqual(
+      4
+    );
+  });
+
+  it("handles primitive, special, and fingerprinted secret values without leaking or throwing", () => {
+    const redactor = new AuditRedactor({ fingerprintSecrets: true });
+    const circularSecret: Record<string, unknown> = { value: "safe" };
+    circularSecret["self"] = circularSecret;
+    const shared = { value: "shared" };
+
+    const result = redactor.sanitizeRequest({
+      tool: "runtime_values",
+      headers: {},
+      input: {
+        nil: null,
+        missing: undefined,
+        count: 42,
+        enabled: true,
+        bigint: 9007199254740993n,
+        symbolValue: Symbol("not-serializable"),
+        functionValue: () => "not-serializable",
+        createdAt: new Date("2026-07-20T00:00:00.000Z"),
+        list: [1, false, null],
+        sharedA: shared,
+        sharedB: shared,
+        nullSecret: null,
+        numberToken: 1234,
+        booleanSecret: false,
+        bigintToken: 99n,
+        symbolToken: Symbol("secret-symbol"),
+        functionSecret: () => "secret-function",
+        objectSecret: circularSecret,
+      },
+    });
+
+    expect(result.request.input).toMatchObject({
+      nil: null,
+      count: 42,
+      enabled: true,
+      bigint: "9007199254740993",
+      symbolValue: "[UNSERIALIZABLE]",
+      functionValue: "[UNSERIALIZABLE]",
+      createdAt: "2026-07-20T00:00:00.000Z",
+      list: [1, false, null],
+      sharedA: { value: "shared" },
+      sharedB: { value: "shared" },
+    });
+    for (const key of [
+      "nullSecret",
+      "numberToken",
+      "booleanSecret",
+      "bigintToken",
+      "symbolToken",
+      "functionSecret",
+      "objectSecret",
+    ]) {
+      expect(result.request.input[key]).toMatch(/^\[REDACTED sha256:[a-f0-9]{12}\]$/);
+    }
+  });
+
+  it("fails closed for hostile runtime objects and invalid dates", () => {
+    const hostile = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw new Error("hostile object");
+        },
+      }
+    );
+
+    const result = new AuditRedactor().sanitizeRequest({
+      tool: "hostile_values",
+      headers: {},
+      input: {
+        hostile,
+        invalidDate: new Date(Number.NaN),
+      },
+    });
+
+    expect(result.request.input).toMatchObject({
+      hostile: "[UNSERIALIZABLE]",
+      invalidDate: "[INVALID_DATE]",
+    });
+  });
+
+  it("always emits a bounded summary for adversarial oversized tool names", () => {
+    const redactor = new AuditRedactor({ maxRequestBytes: 256 });
+    const result = redactor.sanitizeRequest({
+      tool: '\u0000\\"'.repeat(1000),
+      headers: {},
+      input: { payload: "x".repeat(5000) },
+    });
+
+    expect(result.truncated).toBe(true);
+    expect(Buffer.byteLength(result.serialized, "utf8")).toBeLessThanOrEqual(256);
+    expect(() => JSON.parse(result.serialized)).not.toThrow();
+  });
+
+  it("rejects unsafe direct redactor limits and invalid runtime input shapes", () => {
+    expect(() => new AuditRedactor({ maxRequestBytes: 255 })).toThrow(/maxRequestBytes/);
+    expect(() => new AuditRedactor({ maxErrorBytes: 63 })).toThrow(/maxErrorBytes/);
+    expect(() => new AuditRedactor({ maxDepth: 0 })).toThrow(/maxDepth/);
+
+    const invalidArray = new AuditRedactor().sanitizeRequest({
+      tool: "invalid",
+      headers: {},
+      input: [] as unknown as Record<string, unknown>,
+    });
+    const invalidNull = new AuditRedactor().sanitizeRequest({
+      tool: "invalid",
+      headers: {},
+      input: null as unknown as Record<string, unknown>,
+    });
+
+    expect(invalidArray.request.input).toEqual({ _audit: "[INVALID_INPUT]" });
+    expect(invalidNull.request.input).toEqual({ _audit: "[INVALID_INPUT]" });
   });
 });

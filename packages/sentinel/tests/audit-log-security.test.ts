@@ -58,6 +58,15 @@ function createLegacyAuditTable(db: Database.Database): void {
 }
 
 describe("AuditLog persistence security", () => {
+  it("enables SQLite secure delete before retention and remediation", () => {
+    const db = new Database(":memory:");
+    db.pragma("secure_delete = OFF");
+
+    new AuditLog(db);
+
+    expect(db.pragma("secure_delete", { simple: true })).toBe(1);
+  });
+
   it("redacts request and error data before SQLite persistence and exports", () => {
     const db = new Database(":memory:");
     const auditLog = new AuditLog(db);

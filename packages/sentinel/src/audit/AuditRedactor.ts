@@ -95,13 +95,19 @@ function fingerprintSource(value: unknown): string {
   if (value === null || value === undefined) {
     return String(value);
   }
-  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
-    return String(value);
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint" ||
+    typeof value === "symbol" ||
+    typeof value === "function"
+  ) {
+    return `${typeof value}:${String(value)}`;
   }
 
   const seen = new WeakSet<object>();
   try {
-    return JSON.stringify(value, (_key, nested: unknown) => {
+    const serialized = JSON.stringify(value, (_key, nested: unknown) => {
       if (nested && typeof nested === "object") {
         if (seen.has(nested)) {
           return "[CIRCULAR]";
@@ -110,6 +116,7 @@ function fingerprintSource(value: unknown): string {
       }
       return nested;
     });
+    return serialized ?? Object.prototype.toString.call(value);
   } catch {
     return Object.prototype.toString.call(value);
   }
@@ -159,19 +166,26 @@ export class AuditRedactor {
       return { request: sanitized, serialized, truncated: false };
     }
 
-    const summary: ToolCallRequest = {
-      tool: truncateUtf8(sanitized.tool, 128),
-      headers: {},
-      input: {
-        _audit: `[TRUNCATED] redacted request exceeded ${this.options.maxRequestBytes} UTF-8 bytes`,
-      },
-    };
-    const summaryJson = JSON.stringify(summary);
-    if (Buffer.byteLength(summaryJson, "utf8") > this.options.maxRequestBytes) {
-      throw new Error("maxRequestBytes is too small for the audit truncation summary");
+    const auditMessage = `[TRUNCATED] redacted request exceeded ${this.options.maxRequestBytes} UTF-8 bytes`;
+    let toolBudget = Math.min(128, this.options.maxRequestBytes);
+
+    while (toolBudget >= 0) {
+      const summary: ToolCallRequest = {
+        tool: toolBudget === 0 ? "" : truncateUtf8(sanitized.tool, toolBudget),
+        headers: {},
+        input: { _audit: auditMessage },
+      };
+      const summaryJson = JSON.stringify(summary);
+      if (Buffer.byteLength(summaryJson, "utf8") <= this.options.maxRequestBytes) {
+        return { request: summary, serialized: summaryJson, truncated: true };
+      }
+      if (toolBudget === 0) {
+        break;
+      }
+      toolBudget = Math.floor(toolBudget / 2);
     }
 
-    return { request: summary, serialized: summaryJson, truncated: true };
+    throw new Error("maxRequestBytes is too small for the audit truncation summary");
   }
 
   sanitizeError(error: string | undefined): string | undefined {
@@ -211,7 +225,7 @@ export class AuditRedactor {
       return "[MAX_DEPTH]";
     }
     if (value instanceof Date) {
-      return value.toISOString();
+      return Number.isNaN(value.getTime()) ? "[INVALID_DATE]" : value.toISOString();
     }
     if (ancestors.has(value)) {
       return "[CIRCULAR]";
@@ -223,8 +237,15 @@ export class AuditRedactor {
         return value.map((item) => this.sanitizeValue(item, depth + 1, ancestors));
       }
 
+      let entries: Array<[string, unknown]>;
+      try {
+        entries = Object.entries(value);
+      } catch {
+        return "[UNSERIALIZABLE]";
+      }
+
       return Object.fromEntries(
-        Object.entries(value).map(([key, nested]) => [
+        entries.map(([key, nested]) => [
           key,
           isSensitiveKey(key)
             ? this.secretMarker(nested)

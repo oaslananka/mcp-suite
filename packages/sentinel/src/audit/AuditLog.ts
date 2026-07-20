@@ -131,6 +131,7 @@ export class AuditLog {
     };
     this.redactor = new AuditRedactor(options);
 
+    this.db.pragma("secure_delete = ON");
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS audit_log (
         id TEXT PRIMARY KEY,

@@ -56,3 +56,5 @@ The bundled `better-sqlite3` package does not provide transparent SQLCipher encr
 2. Use a separately built and tested SQLCipher-compatible SQLite driver, keeping the key in a secret manager or protected mounted file.
 
 Do not place encryption keys in the SQLite database, repository, process arguments, shell history, or generated audit exports. On Linux, create the data directory with mode `0700` and the database file with mode `0600`; also protect WAL and shared-memory sidecar files with the same ownership boundary.
+
+Sentinel enables SQLite `secure_delete` before retention and historical remediation. This reduces recoverability from deleted cells in the active database, but it cannot erase bytes already copied into WAL files, filesystem snapshots, volume snapshots, backups, replicas, or storage-controller caches. After upgrading an existing database that may contain raw secrets, rotate affected credentials, checkpoint and replace the database during a maintenance window, and remove or expire pre-remediation backups according to the storage platform's secure-deletion procedure.
