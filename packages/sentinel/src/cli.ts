@@ -55,11 +55,14 @@ async function readApprovalCapability(options: CapabilitySourceOptions): Promise
     throw new Error("Choose only one capability source: file or stdin");
   }
 
-  const capability = options.capabilityFile
-    ? await readCapabilityFile(options.capabilityFile)
-    : options.capabilityStdin
-      ? await readCapabilityStdin()
-      : readCapabilityEnvironment(options.capabilityEnv);
+  let capability: string | undefined;
+  if (options.capabilityFile) {
+    capability = await readCapabilityFile(options.capabilityFile);
+  } else if (options.capabilityStdin) {
+    capability = await readCapabilityStdin();
+  } else {
+    capability = readCapabilityEnvironment(options.capabilityEnv);
+  }
   const normalized = capability?.trim();
   if (!normalized) {
     throw new Error(
