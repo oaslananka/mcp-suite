@@ -13,11 +13,14 @@ import {
   MIN_AUDIT_REQUEST_BYTES,
 } from "./AuditRedactor.js";
 
+type OptionalNumericAuditOption = string | number | undefined;
+type OptionalBooleanAuditOption = string | boolean | undefined;
+
 export interface AuditLogOptionInput {
-  retentionDays?: string | number | undefined;
-  maxRequestBytes?: string | number | undefined;
-  maxErrorBytes?: string | number | undefined;
-  fingerprintSecrets?: string | boolean | undefined;
+  retentionDays?: OptionalNumericAuditOption;
+  maxRequestBytes?: OptionalNumericAuditOption;
+  maxErrorBytes?: OptionalNumericAuditOption;
+  fingerprintSecrets?: OptionalBooleanAuditOption;
 }
 
 export interface ResolvedAuditLogOptions extends Required<
@@ -28,7 +31,7 @@ export interface ResolvedAuditLogOptions extends Required<
 > {}
 
 function parseInteger(
-  value: string | number | undefined,
+  value: OptionalNumericAuditOption,
   fallback: number,
   label: string,
   minimum: number,
@@ -41,7 +44,7 @@ function parseInteger(
   return parsed;
 }
 
-function parseBoolean(value: string | boolean | undefined, fallback: boolean): boolean {
+function parseBoolean(value: OptionalBooleanAuditOption, fallback: boolean): boolean {
   if (value === undefined) {
     return fallback;
   }

@@ -48,6 +48,10 @@ const SENSITIVE_KEY_NAMES = new Set([
 ]);
 
 const SECRET_SUFFIXES = ["token", "secret", "password", "passwd", "credential", "credentials"];
+const FREE_TEXT_CREDENTIAL_PATTERN = new RegExp(
+  String.raw`\b(api[_-]?key|(?:access|refresh|id)[_-]?token|token|secret|password|client[_-]?secret)\s*([:=])\s*([^\s,;]+)`,
+  "gi"
+);
 const TRUNCATION_MARKER = "\n[TRUNCATED]";
 
 function normalizeKey(key: string): string {
@@ -265,7 +269,7 @@ export class AuditRedactor {
       (_match, secret: string) => `Authorization: ${this.secretMarker(secret)}`
     );
     sanitized = sanitized.replace(
-      /\bbearer\s+([A-Za-z0-9._~+/=-]+)/gi,
+      /\bbearer\s+([-\w.~+/=]+)/gi,
       (_match, secret: string) => `Bearer ${this.secretMarker(secret)}`
     );
     sanitized = sanitized.replace(
@@ -275,13 +279,13 @@ export class AuditRedactor {
     sanitized = sanitized.replace(/\bmcp_[a-fA-F0-9]{32,}\b/g, (secret) =>
       this.secretMarker(secret)
     );
-    sanitized = sanitized.replace(
-      /\b(?:github_pat_[A-Za-z0-9_]+|gh[pousr]_[A-Za-z0-9]+)\b/g,
-      (secret) => this.secretMarker(secret)
+    sanitized = sanitized.replace(/\b(?:github_pat_\w+|gh[pousr]_[A-Za-z0-9]+)\b/g, (secret) =>
+      this.secretMarker(secret)
     );
     sanitized = sanitized.replace(
-      /\b(api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|token|secret|password|client[_-]?secret)\s*[:=]\s*([^\s,;]+)/gi,
-      (_match, key: string, secret: string) => `${key}=${this.secretMarker(secret)}`
+      FREE_TEXT_CREDENTIAL_PATTERN,
+      (_match, key: string, separator: string, secret: string) =>
+        `${key}${separator}${this.secretMarker(secret)}`
     );
 
     return sanitized;

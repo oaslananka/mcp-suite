@@ -67,6 +67,24 @@ describe("AuditLog persistence security", () => {
     expect(db.pragma("secure_delete", { simple: true })).toBe(1);
   });
 
+  it("uses cryptographically strong unique identifiers for audit rows", () => {
+    const db = new Database(":memory:");
+    const fixedNow = new Date("2026-07-20T12:00:00.000Z");
+    const auditLog = new AuditLog(db, { now: () => fixedNow });
+
+    auditLog.record({ key: key(), request: request(), decision: "allow" });
+    auditLog.record({ key: key(), request: request(), decision: "allow" });
+
+    const ids = db.prepare("SELECT id FROM audit_log ORDER BY id").all() as Array<{ id: string }>;
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids.map(({ id }) => id)).size).toBe(2);
+    for (const { id } of ids) {
+      expect(id).toMatch(
+        /^key-1_1784548800000_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+      );
+    }
+  });
+
   it("redacts request and error data before SQLite persistence and exports", () => {
     const db = new Database(":memory:");
     const auditLog = new AuditLog(db);

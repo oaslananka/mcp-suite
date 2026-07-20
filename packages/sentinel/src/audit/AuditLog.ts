@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
 import {
   AuditRedactor,
@@ -106,13 +107,15 @@ function coerceLegacyRequest(value: unknown, fallbackTool: string): ToolCallRequ
   };
 }
 
-function csvCell(value: unknown): string {
-  let text = value === null || value === undefined ? "" : String(value);
+type CsvCellValue = string | number | boolean | null | undefined;
+
+function csvCell(value: CsvCellValue): string {
+  let text = value === null || value === undefined ? "" : `${value}`;
   if (/^[=+\-@]/.test(text)) {
     text = `'${text}`;
   }
   if (/[",\r\n]/.test(text)) {
-    return `"${text.replace(/"/g, '""')}"`;
+    return `"${text.replaceAll('"', '""')}"`;
   }
   return text;
 }
@@ -156,7 +159,7 @@ export class AuditLog {
     this.pruneExpired();
 
     const now = this.options.now();
-    const id = `${entry.key.id}_${now.getTime()}_${Math.random().toString(16).slice(2)}`;
+    const id = `${entry.key.id}_${now.getTime()}_${randomUUID()}`;
     const createdAt = entry.createdAt ?? now;
     const sanitizedRequest = this.redactor.sanitizeRequest(entry.request);
     const sanitizedError = this.redactor.sanitizeError(entry.error);
