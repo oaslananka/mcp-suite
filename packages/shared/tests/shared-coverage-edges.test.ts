@@ -48,10 +48,6 @@ function createInitializeResponse(id: JSONRPCRequest["id"]): JSONRPCResponse {
   };
 }
 
-async function flushMicrotasks(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 0));
-}
-
 describe("shared coverage edges", () => {
   const originalFetch = globalThis.fetch;
 
