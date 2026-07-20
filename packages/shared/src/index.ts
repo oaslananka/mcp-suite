@@ -21,6 +21,7 @@ export * from "./utils/validate.js";
 export * from "./utils/bundle.js";
 export * from "./utils/uuid.js";
 export * from "./security/urlPolicy.js";
+export * from "./security/safeFetch.js";
 export * from "./auth/ApiKeyMiddleware.js";
 export * from "./ratelimit/RateLimiter.js";
 export * from "./health/HealthEndpoint.js";

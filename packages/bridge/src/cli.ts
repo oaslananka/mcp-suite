@@ -7,10 +7,21 @@ import { logger } from "@oaslananka/shared";
 import { MCPServerGenerator } from "./generators/MCPServerGenerator.js";
 import { OpenAPIParser } from "./parsers/OpenAPIParser.js";
 import type { ParsedAPI } from "./parsers/OpenAPIParser.js";
+import { resolveTrustedPrivateHosts } from "./security/RemoteSchemaConfig.js";
 
-async function parseOpenAPI(input: string): Promise<ParsedAPI> {
-  const parser = new OpenAPIParser();
-  if (/^https?:\/\//.test(input)) {
+interface RemoteSchemaCliOptions {
+  trustedPrivateHost?: string[];
+}
+
+async function parseOpenAPI(input: string, options: RemoteSchemaCliOptions): Promise<ParsedAPI> {
+  const trustedPrivateHosts = resolveTrustedPrivateHosts(
+    options.trustedPrivateHost,
+    process.env["BRIDGE_TRUSTED_PRIVATE_HOSTS"]
+  );
+  const parser = new OpenAPIParser({
+    ...(trustedPrivateHosts.length > 0 ? { remote: { trustedPrivateHosts } } : {}),
+  });
+  if (/^https?:\/\//i.test(input)) {
     return parser.parseURL(input);
   }
   return parser.parseFile(path.resolve(input));
@@ -28,9 +39,21 @@ generate
   .requiredOption("--output <dir>", "Output directory")
   .option("--name <serverName>", "Generated server name", "generated-bridge-server")
   .option("--package-name <packageName>", "Generated package name")
+  .option(
+    "--trusted-private-host <host...>",
+    "Allow an exact private-network hostname or IP for remote schema loading"
+  )
   .action(
-    async (input: string, options: { output: string; name: string; packageName?: string }) => {
-      const parsed = await parseOpenAPI(input);
+    async (
+      input: string,
+      options: {
+        output: string;
+        name: string;
+        packageName?: string;
+        trustedPrivateHost?: string[];
+      }
+    ) => {
+      const parsed = await parseOpenAPI(input, options);
       const generator = new MCPServerGenerator();
       const generated = generator.generate(parsed, {
         serverName: options.name,
@@ -56,8 +79,12 @@ const validate = program
 validate
   .command("openapi")
   .argument("<input>", "Local OpenAPI file path or URL")
-  .action(async (input: string) => {
-    const parsed = await parseOpenAPI(input);
+  .option(
+    "--trusted-private-host <host...>",
+    "Allow an exact private-network hostname or IP for remote schema loading"
+  )
+  .action(async (input: string, options: RemoteSchemaCliOptions) => {
+    const parsed = await parseOpenAPI(input, options);
     process.stdout.write(
       `${JSON.stringify(
         {

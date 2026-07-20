@@ -1,8 +1,8 @@
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { OpenAPIParser } from "../src/parsers/OpenAPIParser.js";
+import { describe, expect, it, vi } from "vitest";
+import { OpenAPIParser, type OpenAPIRemoteLoader } from "../src/parsers/OpenAPIParser.js";
 
 const OPENAPI_DOCUMENT = `
 openapi: 3.1.0
@@ -35,12 +35,22 @@ components:
       scheme: bearer
 `;
 
-describe("OpenAPIParser", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
-  });
+function remoteResult(
+  bodyText = OPENAPI_DOCUMENT,
+  overrides: Partial<Awaited<ReturnType<OpenAPIRemoteLoader>>> = {}
+): Awaited<ReturnType<OpenAPIRemoteLoader>> {
+  return {
+    bodyText,
+    finalUrl: new URL("https://registry.example.com/openapi.yaml"),
+    headers: new Headers({ "content-type": "text/yaml" }) as never,
+    ok: true,
+    status: 200,
+    statusText: "OK",
+    ...overrides,
+  };
+}
 
+describe("OpenAPIParser", () => {
   it("parses YAML content into endpoints, servers, and security schemes", async () => {
     const parser = new OpenAPIParser();
 
@@ -58,8 +68,9 @@ describe("OpenAPIParser", () => {
     expect(parsed.endpoints[1]?.operationId).toBe("post__pets");
   });
 
-  it("loads a document from disk", async () => {
-    const parser = new OpenAPIParser();
+  it("loads a document from disk without using the remote network loader", async () => {
+    const remoteLoader = vi.fn<OpenAPIRemoteLoader>();
+    const parser = new OpenAPIParser({}, remoteLoader);
     const dir = await mkdtemp(join(tmpdir(), "bridge-openapi-"));
     const filePath = join(dir, "openapi.yaml");
 
@@ -69,39 +80,76 @@ describe("OpenAPIParser", () => {
       const parsed = await parser.parseFile(filePath);
 
       expect(parsed.endpoints.map((endpoint) => endpoint.operationId)).toContain("listPets");
+      expect(remoteLoader).not.toHaveBeenCalled();
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  it("loads a remote document over fetch", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        text: async () => OPENAPI_DOCUMENT,
-      })
-    );
+  it("loads public JSON and YAML through the shared hardened fetch policy", async () => {
+    const remoteLoader = vi.fn<OpenAPIRemoteLoader>().mockResolvedValue(remoteResult());
+    const parser = new OpenAPIParser({}, remoteLoader);
 
-    const parser = new OpenAPIParser();
     const parsed = await parser.parseURL("https://registry.example.com/openapi.yaml");
 
     expect(parsed.endpoints).toHaveLength(2);
+    expect(remoteLoader).toHaveBeenCalledWith("https://registry.example.com/openapi.yaml", {
+      label: "Remote OpenAPI schema policy",
+      allowedContentTypes: [
+        "application/json",
+        "application/yaml",
+        "application/x-yaml",
+        "text/yaml",
+        "text/x-yaml",
+        "text/plain",
+        "application/vnd.oai.openapi+json",
+        "application/vnd.oai.openapi+yaml",
+      ],
+      maxRedirects: 3,
+      maxResponseBytes: 1_000_000,
+      timeoutMs: 10_000,
+    });
   });
 
-  it("throws when the remote document cannot be fetched", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: false,
-        text: async () => "",
-      })
+  it("passes exact trusted private hosts as an explicit opt-in", async () => {
+    const remoteLoader = vi.fn<OpenAPIRemoteLoader>().mockResolvedValue(remoteResult());
+    const parser = new OpenAPIParser(
+      { remote: { trustedPrivateHosts: ["schemas.corp.example"] } },
+      remoteLoader
     );
 
-    const parser = new OpenAPIParser();
+    await parser.parseURL("https://schemas.corp.example/openapi.yaml");
 
-    await expect(parser.parseURL("https://registry.example.com/openapi.yaml")).rejects.toThrow(
-      "Failed to fetch OpenAPI document from https://registry.example.com/openapi.yaml"
+    expect(remoteLoader).toHaveBeenCalledWith(
+      "https://schemas.corp.example/openapi.yaml",
+      expect.objectContaining({ trustedPrivateHosts: ["schemas.corp.example"] })
     );
+  });
+
+  it("rejects unsuccessful remote responses without reflecting the input URL", async () => {
+    const remoteLoader = vi
+      .fn<OpenAPIRemoteLoader>()
+      .mockResolvedValue(
+        remoteResult("not found", { ok: false, status: 404, statusText: "Not Found" })
+      );
+    const parser = new OpenAPIParser({}, remoteLoader);
+    const target = "https://secret-hostname.example/private/openapi.yaml";
+
+    const failure = parser.parseURL(target);
+
+    await expect(failure).rejects.toThrow("Remote OpenAPI schema request failed with HTTP 404");
+    await expect(failure).rejects.not.toThrow(target);
+  });
+
+  it("propagates deterministic shared policy failures without retrying unsafely", async () => {
+    const remoteLoader = vi
+      .fn<OpenAPIRemoteLoader>()
+      .mockRejectedValue(new Error("Remote OpenAPI schema policy: private target is not allowed"));
+    const parser = new OpenAPIParser({}, remoteLoader);
+
+    await expect(parser.parseURL("https://127.0.0.1/openapi.yaml")).rejects.toThrow(
+      /private target is not allowed/i
+    );
+    expect(remoteLoader).toHaveBeenCalledTimes(1);
   });
 });

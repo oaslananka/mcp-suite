@@ -1,16 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Readable } from "node:stream";
 import { RunContext } from "../src/runtime/RunContext.js";
 
-const fetchMock = vi.hoisted(() => vi.fn());
-const lookupMock = vi.hoisted(() => vi.fn());
+const safeFetchMock = vi.hoisted(() => vi.fn());
 
-vi.mock("node-fetch", () => ({
-  default: fetchMock,
-}));
-vi.mock("node:dns/promises", () => ({
-  lookup: lookupMock,
-}));
+vi.mock("@oaslananka/shared", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@oaslananka/shared")>();
+  return {
+    ...actual,
+    safeFetchText: safeFetchMock,
+  };
+});
 
 import { HttpNode } from "../src/nodes/HttpNode.js";
 
@@ -29,23 +28,30 @@ function createContext(): RunContext {
   return ctx;
 }
 
+function safeResponse(
+  bodyText: string,
+  options: { ok?: boolean; status?: number; statusText?: string } = {}
+) {
+  return {
+    bodyText,
+    finalUrl: new URL("https://api.example.com/final"),
+    headers: new Headers(),
+    ok: options.ok ?? true,
+    status: options.status ?? 200,
+    statusText: options.statusText ?? "OK",
+  };
+}
+
 describe("HttpNode", () => {
   afterEach(() => {
-    fetchMock.mockReset();
-    lookupMock.mockReset();
+    safeFetchMock.mockReset();
     vi.restoreAllMocks();
   });
 
-  it("resolves templates, performs fetch, and parses JSON responses", async () => {
-    lookupMock.mockResolvedValue([{ address: "203.0.113.10", family: 4 }]);
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      body: Readable.from([JSON.stringify({ created: true })]),
-      text: async () => JSON.stringify({ created: true }),
-    });
+  it("resolves templates and delegates to the shared hardened fetch policy", async () => {
+    safeFetchMock.mockResolvedValue(safeResponse(JSON.stringify({ created: true })));
 
+    const ctx = createContext();
     const node = new HttpNode();
     const result = await node.execute(
       {
@@ -60,39 +66,24 @@ describe("HttpNode", () => {
           title: "{{ payload.title }}",
         },
       },
-      createContext()
+      ctx
     );
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.example.com/releases",
-      expect.objectContaining({
-        body: JSON.stringify({ title: "MCP Suite" }),
-        headers: { authorization: "Bearer secret" },
-        method: "POST",
-        redirect: "manual",
-        signal: expect.any(AbortSignal),
-        agent: expect.any(Object),
-      })
+    expect(safeFetchMock).toHaveBeenCalledWith("https://api.example.com/releases", {
+      label: "HTTP URL policy",
+      method: "POST",
+      headers: { authorization: "Bearer secret" },
+      body: JSON.stringify({ title: "MCP Suite" }),
+      maxRedirects: 3,
+      timeoutMs: 10_000,
+      maxRequestBytes: 1_000_000,
+      maxResponseBytes: 1_000_000,
+    });
+    expect(ctx.logger.info).toHaveBeenCalledWith(
+      { method: "POST" },
+      "Executing outbound HTTP request"
     );
-    const [, fetchOptions] = fetchMock.mock.calls[0] as [
-      string,
-      { agent: { options: { lookup: Function } } },
-    ];
-    await expect(
-      new Promise<string>((resolve, reject) => {
-        fetchOptions.agent.options.lookup(
-          "api.example.com",
-          {},
-          (error: Error | null, address: string) => {
-            if (error) {
-              reject(error);
-              return;
-            }
-            resolve(address);
-          }
-        );
-      })
-    ).resolves.toBe("203.0.113.10");
+    expect(ctx.logger.info).not.toHaveBeenCalledWith(expect.stringContaining("api.example.com"));
     expect(result).toEqual({
       status: "success",
       output: { created: true },
@@ -100,14 +91,13 @@ describe("HttpNode", () => {
   });
 
   it("returns failed results for non-ok responses and preserves plain text payloads", async () => {
-    lookupMock.mockResolvedValue([{ address: "203.0.113.20", family: 4 }]);
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 503,
-      statusText: "Service Unavailable",
-      body: Readable.from(["temporarily down"]),
-      text: async () => "temporarily down",
-    });
+    safeFetchMock.mockResolvedValue(
+      safeResponse("temporarily down", {
+        ok: false,
+        status: 503,
+        statusText: "Service Unavailable",
+      })
+    );
 
     const node = new HttpNode();
     const result = await node.execute(
@@ -127,75 +117,33 @@ describe("HttpNode", () => {
     });
   });
 
-  it.each([
-    "http://169.254.169.254/latest/meta-data",
-    "https://127.0.0.1/admin",
-    "https://localhost/status",
-    "https://10.0.0.8/internal",
-    "https://[::1]/admin",
-    "https://[fd00::1]/admin",
-  ])("blocks private or non-HTTPS HTTP targets before fetching: %s", async (url) => {
-    lookupMock.mockResolvedValue([{ address: "127.0.0.1", family: 4 }]);
+  it("propagates shared URL-policy failures without performing alternate network access", async () => {
+    safeFetchMock.mockRejectedValue(
+      new Error("HTTP URL policy: private or reserved targets are not allowed")
+    );
 
     const node = new HttpNode();
     const result = await node.execute(
       {
         id: "blocked",
         type: "http",
-        url,
+        url: "https://127.0.0.1/admin",
         method: "GET",
       },
       createContext()
     );
 
-    expect(result.status).toBe("failed");
-    expect(result.error).toMatch(/HTTP URL policy|private|loopback|HTTPS/i);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(safeFetchMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      status: "failed",
+      error: "HTTP URL policy: private or reserved targets are not allowed",
+    });
   });
 
-  it("rechecks redirect targets and blocks redirects to private networks", async () => {
-    lookupMock.mockImplementation(async (hostname: string) => {
-      if (hostname === "api.example.com") {
-        return [{ address: "203.0.113.30", family: 4 }];
-      }
-      return [{ address: "127.0.0.1", family: 4 }];
-    });
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 302,
-      statusText: "Found",
-      headers: {
-        get: (name: string) =>
-          name.toLowerCase() === "location" ? "https://127.0.0.1/admin" : null,
-      },
-      text: async () => "",
-    });
-
-    const node = new HttpNode();
-    const result = await node.execute(
-      {
-        id: "redirect",
-        type: "http",
-        url: "https://api.example.com/redirect",
-        method: "GET",
-      },
-      createContext()
+  it("preserves the shared response-size failure", async () => {
+    safeFetchMock.mockRejectedValue(
+      new Error("HTTP URL policy: response body exceeds the maximum allowed size")
     );
-
-    expect(result.status).toBe("failed");
-    expect(result.error).toMatch(/redirect|private|loopback/i);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("enforces the response byte limit while reading the response stream", async () => {
-    lookupMock.mockResolvedValue([{ address: "203.0.113.40", family: 4 }]);
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      headers: { get: () => null },
-      body: Readable.from([Buffer.alloc(1_000_001, "x")]),
-    });
 
     const node = new HttpNode();
     const result = await node.execute(
@@ -212,5 +160,13 @@ describe("HttpNode", () => {
       status: "failed",
       error: "HTTP URL policy: response body exceeds the maximum allowed size",
     });
+  });
+
+  it("rejects incomplete HTTP node definitions before invoking the shared fetcher", async () => {
+    const node = new HttpNode();
+    const result = await node.execute({ id: "invalid", type: "http" } as never, createContext());
+
+    expect(result).toEqual({ status: "failed", error: "Missing url or method in HTTP node" });
+    expect(safeFetchMock).not.toHaveBeenCalled();
   });
 });
