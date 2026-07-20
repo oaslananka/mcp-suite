@@ -17,6 +17,12 @@ import { ResponsePipeline } from "./ResponsePipeline.js";
 export interface ProxyConfig {
   upstreamUrl?: string;
   upstreamCommand?: string;
+  approval?: {
+    channels?: string[];
+    timeout?: string;
+    approverPrincipalId?: string;
+    onTimeout?: "deny" | "approve";
+  };
 }
 
 export class SentinelProxy {
@@ -138,19 +144,39 @@ export class SentinelProxy {
     }
 
     if (decision.action === "require_approval") {
-      const approval = await this.approvalGate.hold(finalReq, {
-        channels: ["default"],
-        timeout: "5m",
-        on_timeout: "deny",
+      const upstreamExpiresAt = readOptionalExpiry(
+        req.headers["x-sentinel-request-expires-at"] ?? req.headers["X-Sentinel-Request-Expires-At"]
+      );
+      const idempotencyKey =
+        req.headers["x-sentinel-request-id"] ?? req.headers["X-Sentinel-Request-Id"];
+      const approvalRequest = await this.approvalGate.holdRequest(finalReq, {
+        channels: this.config.approval?.channels ?? ["default"],
+        timeout: this.config.approval?.timeout ?? "5m",
+        on_timeout: this.config.approval?.onTimeout ?? "deny",
+        requesterPrincipalId: key.id,
+        ...(this.config.approval?.approverPrincipalId
+          ? { approverPrincipalId: this.config.approval.approverPrincipalId }
+          : {}),
+        ...(upstreamExpiresAt ? { upstreamExpiresAt } : {}),
+        ...(idempotencyKey ? { idempotencyKey } : {}),
       });
-      if (approval !== "approved") {
+      if (approvalRequest.status !== "approved") {
         this.auditLog.record({
           key,
           request: req,
           decision: "deny",
-          error: "Approval denied or timed out",
+          error: `Approval ${approvalRequest.status}`,
         });
-        throw new Error("Sentinel denied call: Approval failed");
+        throw new Error(`Sentinel denied call: Approval ${approvalRequest.status}`);
+      }
+      if (!this.approvalGate.claimExecution(approvalRequest.id, key.id)) {
+        this.auditLog.record({
+          key,
+          request: req,
+          decision: "deny",
+          error: "Approved execution was already claimed",
+        });
+        throw new Error("Sentinel denied call: Approved execution was already claimed");
       }
     }
 
@@ -201,4 +227,15 @@ export class SentinelProxy {
       isRevoked: false,
     };
   }
+}
+
+function readOptionalExpiry(value: string | undefined): Date | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const expiry = new Date(value);
+  if (Number.isNaN(expiry.getTime())) {
+    throw new Error("Sentinel denied call: Invalid upstream request expiry");
+  }
+  return expiry;
 }

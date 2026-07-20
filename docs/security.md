@@ -64,3 +64,13 @@ The bundled `better-sqlite3` package does not provide transparent SQLCipher encr
 Do not place encryption keys in the SQLite database, repository, process arguments, shell history, or generated audit exports. On Linux, create the data directory with mode `0700` and the database file with mode `0600`; also protect WAL and shared-memory sidecar files with the same ownership boundary.
 
 Sentinel enables SQLite `secure_delete` before retention and historical remediation. This reduces recoverability from deleted cells in the active database, but it cannot erase bytes already copied into WAL files, filesystem snapshots, volume snapshots, backups, replicas, or storage-controller caches. After upgrading an existing database that may contain raw secrets, rotate affected credentials, checkpoint and replace the database during a maintenance window, and remove or expire pre-remediation backups according to the storage platform's secure-deletion procedure.
+
+## Sentinel Durable Approvals
+
+Sentinel human approvals use SQLite-backed state rather than in-memory timers. Request payloads cross the mandatory `AuditRedactor` boundary before persistence. Raw approval capabilities are never stored; only SHA-256 hashes are retained. Capabilities are request-bound, principal-bound, single-use, and expire at the earlier of Sentinel's timeout or the caller's upstream expiry.
+
+Approval events are append-only. SQLite triggers reject update and delete operations on the event table. Terminal decisions cannot be reversed, and an atomic execution claim ensures that an approved request can release at most one upstream tool invocation even when duplicate callers are waiting concurrently.
+
+Idempotency keys are hashed together with the requester principal. A separate request fingerprint prevents an idempotency key from authorizing a different tool, input, approver, channel set, or upstream expiry. Channel delivery failure, missing adapters, cancellation, and timeout fail closed. Fail-open timeout behavior requires an explicit library-only opt-in and should not be enabled for production security boundaries.
+
+Treat approval capabilities as credentials. Provider adapters must avoid URLs, logs, telemetry fields, chat previews, and plaintext persistence. Prefer encrypted short-lived provider state and opaque callback identifiers. Protect the Sentinel SQLite file with restrictive filesystem permissions and encrypted storage; `secure_delete` does not remove historical bytes from backups, snapshots, or old WAL files.

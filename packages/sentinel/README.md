@@ -78,3 +78,75 @@ The bundled `better-sqlite3` driver does not transparently encrypt the database.
 ## Works Well With
 
 Sentinel is most effective in front of `@oaslananka/composer` or `@oaslananka/forge`, where one policy layer can protect many downstream MCP tools and pipeline runs.
+
+## Durable Human Approval Workflow
+
+Sentinel approval requests are persisted in the same SQLite database as the proxy configuration. A request moves through `pending`, `approved`, `denied`, `expired`, or `cancelled`; terminal states are not reversible. Every transition is appended to an immutable event table, and the request is sanitized through the same mandatory redaction boundary used by audit persistence.
+
+Approval capabilities are random, single-use, expire with the request, and are stored only as SHA-256 hashes. They are bound to one request and one approver principal. Raw capabilities are delivered only to the configured channel adapter. Adapters must never log them, persist them as plaintext, place them in URLs, or send them to analytics systems.
+
+```ts
+import Database from "better-sqlite3";
+import { ApprovalGate, type ApprovalChannelAdapter } from "@oaslananka/sentinel";
+
+const channel: ApprovalChannelAdapter = {
+  name: "internal-approval-service",
+  async publish({ request, capability }) {
+    // Store capability.token only in short-lived encrypted provider state.
+    // Send the approver an opaque callback identifier, not the raw token in a URL.
+    await approvalService.createAction({
+      requestId: request.id,
+      approver: capability.principalId,
+      expiresAt: capability.expiresAt,
+      capability: capability.token,
+      sanitizedRequest: request.request,
+    });
+  },
+};
+
+const db = new Database("./data/sentinel.sqlite");
+const approvals = new ApprovalGate(db, {
+  adapters: [channel],
+  pollIntervalMs: 250,
+});
+```
+
+Embedding applications register Slack, Teams, email, webhook, or internal UI adapters through `ApprovalChannelAdapter`. Adapter delivery failure or a missing requested adapter cancels the request and fails closed. Timeout also fails closed by default. Fail-open timeout behavior exists only as an explicit library constructor option and is intentionally unavailable from the bundled CLI.
+
+When a policy requires approval, provide a stable requester-scoped idempotency value through `x-sentinel-request-id`. Sentinel fingerprints the sanitized tool request, approver, channels, and upstream expiry. Reusing the same key for a different request is rejected. After approval, an atomic execution claim permits only one concurrent proxy call to reach the upstream tool.
+
+An upstream caller can bound the workflow further with an ISO timestamp in `x-sentinel-request-expires-at`. Sentinel uses the earlier of that timestamp and its configured approval timeout.
+
+### Operator commands
+
+List and inspect pending work:
+
+```bash
+sentinel approvals list --status pending --db ./data/sentinel.sqlite
+sentinel approvals show <request-id> --db ./data/sentinel.sqlite
+sentinel approvals events <request-id> --db ./data/sentinel.sqlite
+```
+
+Approve or deny without exposing the capability in the process argument list:
+
+```bash
+printf '%s' "$ONE_USE_CAPABILITY" | sentinel approvals decide \
+  --capability-stdin \
+  --principal operator@example.com \
+  --decision approved \
+  --reason "Reviewed production change" \
+  --db ./data/sentinel.sqlite
+```
+
+A `0600` capability file or the `SENTINEL_APPROVAL_CAPABILITY` environment variable can be used instead. The CLI rejects group/world-readable capability files and removes the configured environment variable from its process after reading it.
+
+Cancel as the requester or assigned approver:
+
+```bash
+sentinel approvals cancel <request-id> \
+  --principal operator@example.com \
+  --reason "Request withdrawn" \
+  --db ./data/sentinel.sqlite
+```
+
+Pending requests and their immutable event history survive process restarts. Capabilities remain valid only until their original expiry and are never reissued for a duplicate pending idempotency key.
