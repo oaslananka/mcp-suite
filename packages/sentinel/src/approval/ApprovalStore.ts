@@ -799,7 +799,7 @@ function hashApprovalRequest(input: ApprovalFingerprintInput): string {
         requesterPrincipalId: input.requesterPrincipalId,
         approverPrincipalId: input.approverPrincipalId,
         request: input.request,
-        channels: [...input.channels].sort(),
+        channels: [...input.channels].sort((left, right) => left.localeCompare(right)),
         upstreamExpiresAt: input.upstreamExpiresAt?.toISOString() ?? null,
       })
     )

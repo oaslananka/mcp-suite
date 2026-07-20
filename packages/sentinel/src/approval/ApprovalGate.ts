@@ -271,13 +271,27 @@ export function parseApprovalDuration(timeout: string): number {
     throw new Error("Approval timeout must be a positive safe integer");
   }
 
-  const multiplier =
-    match[2] === "ms" ? 1 : match[2] === "s" ? 1_000 : match[2] === "m" ? 60_000 : 3_600_000;
+  const multiplier = durationMultiplier(match[2]);
   const duration = value * multiplier;
   if (!Number.isSafeInteger(duration)) {
-    throw new Error("Approval timeout is too large");
+    throw new TypeError("Approval timeout is too large");
   }
   return duration;
+}
+
+function durationMultiplier(unit: string | undefined): number {
+  switch (unit) {
+    case "ms":
+      return 1;
+    case "s":
+      return 1_000;
+    case "m":
+      return 60_000;
+    case "h":
+      return 3_600_000;
+    default:
+      throw new TypeError("Approval timeout unit is invalid");
+  }
 }
 
 function positiveInteger(value: number, label: string): number {

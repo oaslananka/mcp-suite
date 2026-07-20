@@ -44,44 +44,22 @@ function parseApprovalDecision(value: string): ApprovalDecision {
   throw new Error("Approval decision must be approved or denied");
 }
 
-async function readApprovalCapability(options: {
+interface CapabilitySourceOptions {
   capabilityEnv: string;
   capabilityFile?: string;
   capabilityStdin?: boolean;
-}): Promise<string> {
+}
+
+async function readApprovalCapability(options: CapabilitySourceOptions): Promise<string> {
   if (options.capabilityFile && options.capabilityStdin) {
     throw new Error("Choose only one capability source: file or stdin");
   }
 
-  let capability: string | undefined;
-  if (options.capabilityFile) {
-    const filePath = path.resolve(options.capabilityFile);
-    const metadata = await stat(filePath);
-    if (!metadata.isFile()) {
-      throw new Error("Approval capability path must be a regular file");
-    }
-    if (process.platform !== "win32" && (metadata.mode & 0o077) !== 0) {
-      throw new Error("Approval capability file must not be accessible by group or other users");
-    }
-    capability = await readFile(filePath, "utf8");
-  } else if (options.capabilityStdin) {
-    process.stdin.setEncoding("utf8");
-    let input = "";
-    for await (const chunk of process.stdin) {
-      input += chunk;
-      if (Buffer.byteLength(input, "utf8") > 4096) {
-        throw new Error("Approval capability input is too large");
-      }
-    }
-    capability = input;
-  } else {
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(options.capabilityEnv)) {
-      throw new Error("Capability environment variable name is invalid");
-    }
-    capability = process.env[options.capabilityEnv];
-    delete process.env[options.capabilityEnv];
-  }
-
+  const capability = options.capabilityFile
+    ? await readCapabilityFile(options.capabilityFile)
+    : options.capabilityStdin
+      ? await readCapabilityStdin()
+      : readCapabilityEnvironment(options.capabilityEnv);
   const normalized = capability?.trim();
   if (!normalized) {
     throw new Error(
@@ -89,6 +67,39 @@ async function readApprovalCapability(options: {
     );
   }
   return normalized;
+}
+
+async function readCapabilityFile(fileName: string): Promise<string> {
+  const filePath = path.resolve(fileName);
+  const metadata = await stat(filePath);
+  if (!metadata.isFile()) {
+    throw new Error("Approval capability path must be a regular file");
+  }
+  if (process.platform !== "win32" && (metadata.mode & 0o077) !== 0) {
+    throw new Error("Approval capability file must not be accessible by group or other users");
+  }
+  return readFile(filePath, "utf8");
+}
+
+async function readCapabilityStdin(): Promise<string> {
+  process.stdin.setEncoding("utf8");
+  let input = "";
+  for await (const chunk of process.stdin) {
+    input += chunk;
+    if (Buffer.byteLength(input, "utf8") > 4096) {
+      throw new Error("Approval capability input is too large");
+    }
+  }
+  return input;
+}
+
+function readCapabilityEnvironment(environmentName: string): string | undefined {
+  if (!/^[A-Za-z_]\w*$/.test(environmentName)) {
+    throw new Error("Capability environment variable name is invalid");
+  }
+  const capability = process.env[environmentName];
+  delete process.env[environmentName];
+  return capability;
 }
 
 const program = new Command();
