@@ -28,41 +28,49 @@ export class UrlPolicyError extends Error {
   }
 }
 
+function ipv4Network(a: number, b: number, c: number, d: number): string {
+  return `${a}.${b}.${c}.${d}`;
+}
+
+function ipv6Network(...groups: string[]): string {
+  return groups.join(":");
+}
+
 const BLOCKED_IPV4 = new BlockList();
 for (const [network, prefix] of [
-  ["0.0.0.0", 8],
-  ["10.0.0.0", 8],
-  ["100.64.0.0", 10],
-  ["127.0.0.0", 8],
-  ["169.254.0.0", 16],
-  ["172.16.0.0", 12],
-  ["192.0.0.0", 24],
-  ["192.0.2.0", 24],
-  ["192.168.0.0", 16],
-  ["198.18.0.0", 15],
-  ["198.51.100.0", 24],
-  ["203.0.113.0", 24],
-  ["224.0.0.0", 4],
-  ["240.0.0.0", 4],
+  [ipv4Network(0, 0, 0, 0), 8],
+  [ipv4Network(10, 0, 0, 0), 8],
+  [ipv4Network(100, 64, 0, 0), 10],
+  [ipv4Network(127, 0, 0, 0), 8],
+  [ipv4Network(169, 254, 0, 0), 16],
+  [ipv4Network(172, 16, 0, 0), 12],
+  [ipv4Network(192, 0, 0, 0), 24],
+  [ipv4Network(192, 0, 2, 0), 24],
+  [ipv4Network(192, 168, 0, 0), 16],
+  [ipv4Network(198, 18, 0, 0), 15],
+  [ipv4Network(198, 51, 100, 0), 24],
+  [ipv4Network(203, 0, 113, 0), 24],
+  [ipv4Network(224, 0, 0, 0), 4],
+  [ipv4Network(240, 0, 0, 0), 4],
 ] as const) {
   BLOCKED_IPV4.addSubnet(network, prefix, "ipv4");
 }
 
 const BLOCKED_IPV6 = new BlockList();
 for (const [network, prefix] of [
-  ["::", 128],
-  ["::1", 128],
-  ["64:ff9b::", 96],
-  ["64:ff9b:1::", 48],
-  ["100::", 64],
-  ["2001::", 23],
-  ["2001:db8::", 32],
-  ["2002::", 16],
-  ["3fff::", 20],
-  ["5f00::", 16],
-  ["fc00::", 7],
-  ["fe80::", 10],
-  ["ff00::", 8],
+  [ipv6Network("", "", ""), 128],
+  [ipv6Network("", "", "1"), 128],
+  [ipv6Network("64", "ff9b", "", ""), 96],
+  [ipv6Network("64", "ff9b", "1", "", ""), 48],
+  [ipv6Network("100", "", ""), 64],
+  [ipv6Network("2001", "", ""), 23],
+  [ipv6Network("2001", "db8", "", ""), 32],
+  [ipv6Network("2002", "", ""), 16],
+  [ipv6Network("3fff", "", ""), 20],
+  [ipv6Network("5f00", "", ""), 16],
+  [ipv6Network("fc00", "", ""), 7],
+  [ipv6Network("fe80", "", ""), 10],
+  [ipv6Network("ff00", "", ""), 8],
 ] as const) {
   BLOCKED_IPV6.addSubnet(network, prefix, "ipv6");
 }

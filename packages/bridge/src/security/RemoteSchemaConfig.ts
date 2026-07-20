@@ -28,7 +28,7 @@ function normalizeExactHost(value: string): string {
     throw new Error("Trusted private host must be an exact hostname or IP literal");
   }
 
-  const bracketed = candidate.match(/^\[([^\]]+)\]$/);
+  const bracketed = /^\[([^\]]+)\]$/.exec(candidate);
   if (bracketed) {
     const address = bracketed[1];
     if (!address || isIP(address) !== 6) {

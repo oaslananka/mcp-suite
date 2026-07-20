@@ -5,6 +5,7 @@ import {
   resolvePublicHttpUrl,
   UrlPolicyError,
   type DnsAddress,
+  type PublicHttpUrlResolution,
   type UrlPolicyOptions,
 } from "./urlPolicy.js";
 
@@ -53,124 +54,222 @@ export class SafeFetchError extends Error {
   }
 }
 
+interface ResolvedSafeFetchOptions {
+  allowedContentTypes?: string[];
+  fetchImpl: typeof fetch;
+  label: string;
+  maxRedirects: number;
+  maxRequestBytes: number;
+  maxResponseBytes: number;
+  policy: SafeFetchOptions;
+  timeoutMs: number;
+}
+
+interface SafeFetchRequestState {
+  body?: string | Uint8Array;
+  headers: Record<string, string>;
+  method: string;
+}
+
+type SafeFetchHopResult =
+  | { kind: "complete"; result: SafeFetchResult }
+  | { kind: "redirect"; target: PublicHttpUrlResolution };
+
 export async function safeFetchText(
   input: string | URL,
   options: SafeFetchOptions = {},
   runtime: SafeFetchRuntime = {}
 ): Promise<SafeFetchResult> {
-  const label = options.label ?? "Safe HTTP fetch";
-  const maxRedirects = assertNonNegativeInteger(
-    options.maxRedirects ?? DEFAULT_MAX_REDIRECTS,
-    "maxRedirects"
-  );
-  const timeoutMs = assertPositiveInteger(options.timeoutMs ?? DEFAULT_TIMEOUT_MS, "timeoutMs");
-  const maxRequestBytes = assertPositiveInteger(
-    options.maxRequestBytes ?? DEFAULT_MAX_REQUEST_BYTES,
-    "maxRequestBytes"
-  );
-  const maxResponseBytes = assertPositiveInteger(
-    options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES,
-    "maxResponseBytes"
-  );
-  let requestBody = options.body;
-  let requestMethod = (options.method ?? "GET").toUpperCase();
-  if (requestBody !== undefined && byteLength(requestBody) > maxRequestBytes) {
-    throw new SafeFetchError(`${label}: request body exceeds the maximum allowed size`);
-  }
-
-  const fetchImpl = runtime.fetch ?? fetch;
-  let target = await resolveFetchTarget(input, options, label);
-  let requestHeaders = withoutHostHeader(options.headers ?? {});
+  const resolved = resolveSafeFetchOptions(options, runtime);
+  const request = createRequestState(options, resolved);
+  let target = await resolveFetchTarget(input, resolved.policy, resolved.label);
 
   for (let redirectCount = 0; ; redirectCount += 1) {
-    const controller = new AbortController();
-    const timer = setTimeout(
-      () => controller.abort(new SafeFetchError(`${label}: request timed out`)),
-      timeoutMs
+    const hop = await executeRequestHop(target, request, resolved, redirectCount);
+    if (hop.kind === "complete") {
+      return hop.result;
+    }
+    target = hop.target;
+  }
+}
+
+function resolveSafeFetchOptions(
+  options: SafeFetchOptions,
+  runtime: SafeFetchRuntime
+): ResolvedSafeFetchOptions {
+  return {
+    ...(options.allowedContentTypes ? { allowedContentTypes: options.allowedContentTypes } : {}),
+    fetchImpl: runtime.fetch ?? fetch,
+    label: options.label ?? "Safe HTTP fetch",
+    maxRedirects: assertNonNegativeInteger(
+      options.maxRedirects ?? DEFAULT_MAX_REDIRECTS,
+      "maxRedirects"
+    ),
+    maxRequestBytes: assertPositiveInteger(
+      options.maxRequestBytes ?? DEFAULT_MAX_REQUEST_BYTES,
+      "maxRequestBytes"
+    ),
+    maxResponseBytes: assertPositiveInteger(
+      options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES,
+      "maxResponseBytes"
+    ),
+    policy: options,
+    timeoutMs: assertPositiveInteger(options.timeoutMs ?? DEFAULT_TIMEOUT_MS, "timeoutMs"),
+  };
+}
+
+function createRequestState(
+  options: SafeFetchOptions,
+  resolved: ResolvedSafeFetchOptions
+): SafeFetchRequestState {
+  const body = options.body;
+  if (body !== undefined && byteLength(body) > resolved.maxRequestBytes) {
+    throw new SafeFetchError(`${resolved.label}: request body exceeds the maximum allowed size`);
+  }
+
+  return {
+    ...(body !== undefined ? { body } : {}),
+    headers: withoutHostHeader(options.headers ?? {}),
+    method: (options.method ?? "GET").toUpperCase(),
+  };
+}
+
+async function executeRequestHop(
+  target: PublicHttpUrlResolution,
+  request: SafeFetchRequestState,
+  options: ResolvedSafeFetchOptions,
+  redirectCount: number
+): Promise<SafeFetchHopResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new SafeFetchError(`${options.label}: request timed out`)),
+    options.timeoutMs
+  );
+
+  try {
+    const response = await options.fetchImpl(
+      target.url.toString(),
+      createRequestInit(target, request, controller.signal, options.label)
     );
 
-    try {
-      const requestInit: RequestInit = {
-        method: requestMethod,
-        headers: requestHeaders,
-        redirect: "manual",
-        signal: controller.signal,
-        agent: createPinnedAgent(target.url, selectPinnedAddresses(target, label)),
-      };
-      if (requestBody !== undefined) {
-        requestInit.body = typeof requestBody === "string" ? requestBody : Buffer.from(requestBody);
-      }
-      const response = await fetchImpl(target.url.toString(), requestInit);
+    if (isRedirect(response.status)) {
+      const nextTarget = await followRedirect(response, target, request, options, redirectCount);
+      return { kind: "redirect", target: nextTarget };
+    }
 
-      if (isRedirect(response.status)) {
-        destroyResponseBody(response);
-        if (redirectCount >= maxRedirects) {
-          throw new SafeFetchError(`${label}: too many redirects`);
-        }
-
-        const location = response.headers.get("location");
-        if (!location) {
-          throw new SafeFetchError(`${label}: redirect response is missing a location header`);
-        }
-
-        const nextUrl = new URL(location, target.url);
-        const crossOrigin = nextUrl.origin !== target.url.origin;
-        if (crossOrigin) {
-          requestHeaders = withoutCrossOriginCredentials(requestHeaders);
-          if (requestBody !== undefined && (response.status === 307 || response.status === 308)) {
-            throw new SafeFetchError(
-              `${label}: cross-origin redirect cannot forward a request body`
-            );
-          }
-        }
-
-        if (
-          response.status === 303 ||
-          ((response.status === 301 || response.status === 302) && requestMethod === "POST")
-        ) {
-          requestMethod = "GET";
-          requestBody = undefined;
-          requestHeaders = withoutEntityHeaders(requestHeaders);
-        }
-
-        target = await resolveFetchTarget(nextUrl, options, `${label} redirect`);
-        continue;
-      }
-
-      assertAllowedContentType(response, options.allowedContentTypes, label);
-      const bodyText = await readLimitedResponseBody(
-        response,
-        maxResponseBytes,
-        controller.signal,
-        label
-      );
-      return {
-        bodyText,
+    assertAllowedContentType(response, options.allowedContentTypes, options.label);
+    return {
+      kind: "complete",
+      result: {
+        bodyText: await readLimitedResponseBody(
+          response,
+          options.maxResponseBytes,
+          controller.signal,
+          options.label
+        ),
         finalUrl: target.url,
         headers: response.headers,
         ok: response.ok,
         status: response.status,
         statusText: response.statusText,
-      };
-    } catch (error: unknown) {
-      if (controller.signal.aborted) {
-        throw new SafeFetchError(`${label}: request timed out`);
-      }
-      if (error instanceof UrlPolicyError || error instanceof SafeFetchError) {
-        throw error;
-      }
-      throw new SafeFetchError(`${label}: request failed`);
-    } finally {
-      clearTimeout(timer);
+      },
+    };
+  } catch (error: unknown) {
+    throw normalizeFetchFailure(error, controller.signal, options.label);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function createRequestInit(
+  target: PublicHttpUrlResolution,
+  request: SafeFetchRequestState,
+  signal: AbortSignal,
+  label: string
+): RequestInit {
+  const requestInit: RequestInit = {
+    method: request.method,
+    headers: request.headers,
+    redirect: "manual",
+    signal,
+    agent: createPinnedAgent(target.url, selectPinnedAddresses(target, label)),
+  };
+  if (request.body !== undefined) {
+    requestInit.body = typeof request.body === "string" ? request.body : Buffer.from(request.body);
+  }
+  return requestInit;
+}
+
+async function followRedirect(
+  response: Response,
+  currentTarget: PublicHttpUrlResolution,
+  request: SafeFetchRequestState,
+  options: ResolvedSafeFetchOptions,
+  redirectCount: number
+): Promise<PublicHttpUrlResolution> {
+  destroyResponseBody(response);
+  if (redirectCount >= options.maxRedirects) {
+    throw new SafeFetchError(`${options.label}: too many redirects`);
+  }
+
+  const location = response.headers.get("location");
+  if (!location) {
+    throw new SafeFetchError(`${options.label}: redirect response is missing a location header`);
+  }
+
+  const nextUrl = new URL(location, currentTarget.url);
+  applyRedirectRequestPolicy(
+    request,
+    response.status,
+    nextUrl.origin !== currentTarget.url.origin,
+    options.label
+  );
+  return resolveFetchTarget(nextUrl, options.policy, `${options.label} redirect`);
+}
+
+function applyRedirectRequestPolicy(
+  request: SafeFetchRequestState,
+  status: number,
+  crossOrigin: boolean,
+  label: string
+): void {
+  if (crossOrigin) {
+    request.headers = withoutCrossOriginCredentials(request.headers);
+    if (request.body !== undefined && preservesMethodAndBody(status)) {
+      throw new SafeFetchError(`${label}: cross-origin redirect cannot forward a request body`);
     }
   }
+
+  if (rewritesToGet(status, request.method)) {
+    request.method = "GET";
+    delete request.body;
+    request.headers = withoutEntityHeaders(request.headers);
+  }
+}
+
+function preservesMethodAndBody(status: number): boolean {
+  return status === 307 || status === 308;
+}
+
+function rewritesToGet(status: number, method: string): boolean {
+  return status === 303 || ((status === 301 || status === 302) && method === "POST");
+}
+
+function normalizeFetchFailure(error: unknown, signal: AbortSignal, label: string): Error {
+  if (signal.aborted) {
+    return new SafeFetchError(`${label}: request timed out`);
+  }
+  if (error instanceof UrlPolicyError || error instanceof SafeFetchError) {
+    return error;
+  }
+  return new SafeFetchError(`${label}: request failed`);
 }
 
 async function resolveFetchTarget(
   input: string | URL,
   options: SafeFetchOptions,
   label: string
-): Promise<Awaited<ReturnType<typeof resolvePublicHttpUrl>>> {
+): Promise<PublicHttpUrlResolution> {
   const target = await resolvePublicHttpUrl(input, {
     ...(options.allowedHosts ? { allowedHosts: options.allowedHosts } : {}),
     ...(options.lookup ? { lookup: options.lookup } : {}),
@@ -184,10 +283,7 @@ async function resolveFetchTarget(
   return target;
 }
 
-function selectPinnedAddresses(
-  target: Awaited<ReturnType<typeof resolvePublicHttpUrl>>,
-  label: string
-): DnsAddress[] {
+function selectPinnedAddresses(target: PublicHttpUrlResolution, label: string): DnsAddress[] {
   if (target.addresses.length === 0) {
     throw new SafeFetchError(`${label}: target host did not resolve`);
   }
