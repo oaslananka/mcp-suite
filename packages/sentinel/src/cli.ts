@@ -6,6 +6,7 @@ import Database from "better-sqlite3";
 import { Command } from "commander";
 import { StdioTransport, logger } from "@oaslananka/shared";
 import { ApprovalGate } from "./approval/ApprovalGate.js";
+import { resolveAuditLogOptions } from "./audit/AuditConfig.js";
 import { AuditLog } from "./audit/AuditLog.js";
 import { KeyManager } from "./auth/KeyManager.js";
 import { detectPII, redactPII } from "./pii/PIIDetector.js";
@@ -41,29 +42,73 @@ program
     "stdio upstream command",
     process.env["SENTINEL_UPSTREAM_COMMAND"]
   )
-  .action(async (options: { db: string; upstreamUrl?: string; upstreamCommand?: string }) => {
-    if (!options.upstreamUrl && !options.upstreamCommand) {
-      throw new Error("Either --upstream-url or --upstream-command is required.");
+  .option(
+    "--audit-retention-days <days>",
+    "Audit retention in days (1-3650)",
+    process.env["SENTINEL_AUDIT_RETENTION_DAYS"]
+  )
+  .option(
+    "--audit-max-request-bytes <bytes>",
+    "Maximum UTF-8 bytes stored for a redacted audit request",
+    process.env["SENTINEL_AUDIT_MAX_REQUEST_BYTES"]
+  )
+  .option(
+    "--audit-max-error-bytes <bytes>",
+    "Maximum UTF-8 bytes stored for a redacted audit error",
+    process.env["SENTINEL_AUDIT_MAX_ERROR_BYTES"]
+  )
+  .option(
+    "--audit-fingerprint-secrets <boolean>",
+    "Add non-reversible SHA-256 prefixes to redaction markers (true or false)",
+    process.env["SENTINEL_AUDIT_FINGERPRINT_SECRETS"]
+  )
+  .action(
+    async (options: {
+      db: string;
+      upstreamUrl?: string;
+      upstreamCommand?: string;
+      auditRetentionDays?: string;
+      auditMaxRequestBytes?: string;
+      auditMaxErrorBytes?: string;
+      auditFingerprintSecrets?: string | boolean;
+    }) => {
+      if (!options.upstreamUrl && !options.upstreamCommand) {
+        throw new Error("Either --upstream-url or --upstream-command is required.");
+      }
+
+      const auditOptions = resolveAuditLogOptions({
+        retentionDays: options.auditRetentionDays,
+        maxRequestBytes: options.auditMaxRequestBytes,
+        maxErrorBytes: options.auditMaxErrorBytes,
+        fingerprintSecrets: options.auditFingerprintSecrets,
+      });
+      const db = await openDatabase(options.db);
+      const keyManager = new KeyManager(db);
+      const proxy = new SentinelProxy(
+        {
+          ...(options.upstreamUrl ? { upstreamUrl: options.upstreamUrl } : {}),
+          ...(options.upstreamCommand ? { upstreamCommand: options.upstreamCommand } : {}),
+        },
+        new RequestPipeline(),
+        new ResponsePipeline(),
+        new AuditLog(db, auditOptions),
+        new ApprovalGate(),
+        new StdioTransport(),
+        keyManager
+      );
+
+      await proxy.start();
+      logger.info(
+        {
+          auditRetentionDays: auditOptions.retentionDays,
+          auditMaxRequestBytes: auditOptions.maxRequestBytes,
+          auditMaxErrorBytes: auditOptions.maxErrorBytes,
+          auditFingerprintSecrets: auditOptions.fingerprintSecrets,
+        },
+        "Sentinel proxy started on stdio transport"
+      );
     }
-
-    const db = await openDatabase(options.db);
-    const keyManager = new KeyManager(db);
-    const proxy = new SentinelProxy(
-      {
-        ...(options.upstreamUrl ? { upstreamUrl: options.upstreamUrl } : {}),
-        ...(options.upstreamCommand ? { upstreamCommand: options.upstreamCommand } : {}),
-      },
-      new RequestPipeline(),
-      new ResponsePipeline(),
-      new AuditLog(db),
-      new ApprovalGate(),
-      new StdioTransport(),
-      keyManager
-    );
-
-    await proxy.start();
-    logger.info("Sentinel proxy started on stdio transport");
-  });
+  );
 
 const keys = program.command("keys").description("Manage Sentinel virtual keys");
 

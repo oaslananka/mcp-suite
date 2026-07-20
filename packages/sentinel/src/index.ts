@@ -2,6 +2,7 @@ export * from "./proxy/SentinelProxy.js";
 export * from "./proxy/RequestPipeline.js";
 export * from "./proxy/ResponsePipeline.js";
 export * from "./policy/PolicyEngine.js";
+export * from "./audit/AuditConfig.js";
 export * from "./audit/AuditLog.js";
 export * from "./audit/AuditRedactor.js";
 export * from "./auth/KeyManager.js";

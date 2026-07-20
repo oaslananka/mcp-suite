@@ -48,10 +48,10 @@
 - Modify: `.env.example`
 - Modify: `docs/security.md`
 
-- [ ] Add CLI/env configuration for retention, request/error limits, and fingerprint mode.
-- [ ] Document immutable redaction behavior, defaults, historical remediation, and operational impact.
-- [ ] Document filesystem permissions and optional encrypted-volume/SQLCipher deployment without claiming built-in encryption.
-- [ ] Run package docs/format checks.
+- [x] Add CLI/env configuration for retention, request/error limits, and fingerprint mode.
+- [x] Document immutable redaction behavior, defaults, historical remediation, and operational impact.
+- [x] Document filesystem permissions and optional encrypted-volume/SQLCipher deployment without claiming built-in encryption.
+- [x] Run package docs/format checks.
 - [x] Commit the task.
 
 ### Task 4: Full verification and delivery

@@ -8,6 +8,8 @@ import type { ToolCallRequest, VirtualKey } from "../auth/KeyManager.js";
 
 const CURRENT_REDACTION_VERSION = 1;
 const DAY_MS = 24 * 60 * 60 * 1000;
+export const MIN_AUDIT_RETENTION_DAYS = 1;
+export const MAX_AUDIT_RETENTION_DAYS = 3650;
 
 export interface AuditEntry {
   key: VirtualKey;
@@ -48,8 +50,14 @@ interface ResolvedAuditLogOptions {
 }
 
 function assertRetentionDays(value: number): number {
-  if (!Number.isInteger(value) || value < 1 || value > 3650) {
-    throw new Error("retentionDays must be an integer between 1 and 3650");
+  if (
+    !Number.isInteger(value) ||
+    value < MIN_AUDIT_RETENTION_DAYS ||
+    value > MAX_AUDIT_RETENTION_DAYS
+  ) {
+    throw new Error(
+      `retentionDays must be an integer between ${MIN_AUDIT_RETENTION_DAYS} and ${MAX_AUDIT_RETENTION_DAYS}`
+    );
   }
   return value;
 }

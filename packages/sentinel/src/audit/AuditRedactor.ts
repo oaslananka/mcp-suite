@@ -6,6 +6,10 @@ export const DEFAULT_AUDIT_RETENTION_DAYS = 30;
 export const DEFAULT_AUDIT_MAX_REQUEST_BYTES = 64 * 1024;
 export const DEFAULT_AUDIT_MAX_ERROR_BYTES = 4 * 1024;
 export const DEFAULT_AUDIT_MAX_DEPTH = 20;
+export const MIN_AUDIT_REQUEST_BYTES = 256;
+export const MAX_AUDIT_REQUEST_BYTES = 1024 * 1024;
+export const MIN_AUDIT_ERROR_BYTES = 64;
+export const MAX_AUDIT_ERROR_BYTES = 64 * 1024;
 
 export interface AuditRedactionOptions {
   fingerprintSecrets?: boolean;
@@ -120,14 +124,14 @@ export class AuditRedactor {
       maxRequestBytes: assertIntegerInRange(
         options.maxRequestBytes ?? DEFAULT_AUDIT_MAX_REQUEST_BYTES,
         "maxRequestBytes",
-        256,
-        1024 * 1024
+        MIN_AUDIT_REQUEST_BYTES,
+        MAX_AUDIT_REQUEST_BYTES
       ),
       maxErrorBytes: assertIntegerInRange(
         options.maxErrorBytes ?? DEFAULT_AUDIT_MAX_ERROR_BYTES,
         "maxErrorBytes",
-        64,
-        64 * 1024
+        MIN_AUDIT_ERROR_BYTES,
+        MAX_AUDIT_ERROR_BYTES
       ),
       maxDepth: assertIntegerInRange(
         options.maxDepth ?? DEFAULT_AUDIT_MAX_DEPTH,
