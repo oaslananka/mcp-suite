@@ -33,6 +33,28 @@ await client.disconnect();
 console.log(tools.tools.map((tool) => tool.name));
 ```
 
+## Streamable HTTP compatibility
+
+`StreamableHTTPTransport` defaults to the MCP `2025-11-25` Streamable HTTP contract and delegates wire behavior to the official MCP TypeScript SDK:
+
+- one configured MCP endpoint handles POST requests, GET/SSE streams, and optional DELETE session termination
+- servers may establish sessions with `MCP-Session-Id`; the client returns that value on subsequent requests
+- the negotiated `MCP-Protocol-Version` is sent after initialization
+- reconnect and SSE resumption use the official SDK implementation
+- disconnect sends DELETE when the server established a session; set `terminateSessionOnClose: false` only when an operator intentionally owns session lifecycle elsewhere
+
+The deprecated HTTP+SSE transport is never selected implicitly. Existing deployments must opt in explicitly:
+
+```ts
+const legacy = new StreamableHTTPTransport({
+  url: "https://legacy.example.com/",
+  compatibilityMode: "legacy-http-sse",
+  legacySseUrl: "https://legacy.example.com/sse",
+});
+```
+
+The announced July 2026 stateless protocol changes are tracked separately and do not silently alter the `2025-11-25` runtime contract. A future protocol version must be enabled through an explicit compatibility release.
+
 ## Included Modules
 
 - MCP client and server primitives
