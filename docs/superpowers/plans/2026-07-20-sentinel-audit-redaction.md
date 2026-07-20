@@ -31,12 +31,12 @@
 - Modify: `packages/sentinel/src/audit/AuditLog.ts`
 - Create: `packages/sentinel/tests/audit-log-security.test.ts`
 
-- [ ] Add failing raw-SQLite assertions proving secrets currently reach `request_json` and `error`.
-- [ ] Add `redaction_version` schema migration and version-one inserts.
-- [ ] Remediate historical rows, including malformed JSON, before query/export.
-- [ ] Add configurable 30-day default retention and explicit pruning.
-- [ ] Verify oversized inputs remain valid, bounded, and sanitized.
-- [ ] Verify JSON and CSV exports contain no raw secrets and CSV is injection-safe.
+- [x] Add failing raw-SQLite assertions proving secrets currently reach `request_json` and `error`.
+- [x] Add `redaction_version` schema migration and version-one inserts.
+- [x] Remediate historical rows, including malformed JSON, before query/export.
+- [x] Add configurable 30-day default retention and explicit pruning.
+- [x] Verify oversized inputs remain valid, bounded, and sanitized.
+- [x] Verify JSON and CSV exports contain no raw secrets and CSV is injection-safe.
 - [x] Commit the task.
 
 ### Task 3: CLI configuration and documentation

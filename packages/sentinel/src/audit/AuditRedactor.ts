@@ -170,8 +170,6 @@ export class AuditRedactor {
     return { request: summary, serialized: summaryJson, truncated: true };
   }
 
-  sanitizeError(error: string): string;
-  sanitizeError(error: undefined): undefined;
   sanitizeError(error: string | undefined): string | undefined {
     if (error === undefined) {
       return undefined;
