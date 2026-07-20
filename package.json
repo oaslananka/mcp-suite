@@ -5,11 +5,16 @@
   "description": "The missing infrastructure layer for the MCP ecosystem",
   "license": "Apache-2.0",
   "engines": {
-    "node": ">=24.0.0",
-    "pnpm": ">=10.0.0"
+    "node": "24.18.x",
+    "pnpm": "10.33.x"
   },
   "packageManager": "pnpm@10.33.0",
   "scripts": {
+    "preinstall": "node scripts/verify-toolchain.mjs --runtime",
+    "toolchain:test": "node --test scripts/toolchain-contract.test.mjs",
+    "toolchain:check:runtime": "node scripts/verify-toolchain.mjs --runtime",
+    "toolchain:check:repository": "node scripts/verify-toolchain.mjs --repository",
+    "toolchain:check": "node scripts/verify-toolchain.mjs --all",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "playground:seed": "node scripts/seed-playground-data.mjs",
