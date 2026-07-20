@@ -291,9 +291,6 @@ importers:
       node-cron:
         specifier: ^4.2.1
         version: 4.2.1
-      node-fetch:
-        specifier: ^3.3.2
-        version: 3.3.2
       uuid:
         specifier: ^11.1.1
         version: 11.1.1
@@ -429,6 +426,9 @@ importers:
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
+      node-fetch:
+        specifier: ^3.3.2
+        version: 3.3.2
       pino:
         specifier: ^9.14.0
         version: 9.14.0
