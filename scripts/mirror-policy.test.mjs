@@ -78,7 +78,7 @@ test("divergence fails closed without changing remote main", () => {
   try {
     git(fixture.source, ["commit", "--allow-empty", "-m", "source-change"]);
     const other = path.join(fixture.directory, "other");
-    git(fixture.directory, ["clone", fixture.remote, other]);
+    git(fixture.directory, ["clone", "--branch", "main", fixture.remote, other]);
     git(other, ["config", "user.name", "Mirror Test"]);
     git(other, ["config", "user.email", "mirror@example.test"]);
     git(other, ["commit", "--allow-empty", "-m", "remote-change"]);

@@ -6,7 +6,8 @@ readonly EXPECTED_DIRECTION="azure-to-github"
 readonly TRACKING_REF="refs/remotes/mcp-suite-github/main"
 
 fail() {
-  printf 'Mirror refused: %s\n' "$1" >&2
+  local message="$1"
+  printf 'Mirror refused: %s\n' "$message" >&2
   exit 1
 }
 
