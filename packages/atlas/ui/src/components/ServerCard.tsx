@@ -1,3 +1,17 @@
+export interface AtlasHealth {
+  status: "online" | "offline" | "degraded";
+  liveness: "reachable" | "unreachable" | "unknown";
+  readiness: "ready" | "not_ready" | "unknown";
+  capabilityStatus: "verified" | "not_supported" | "failed" | "not_checked";
+  responseMs: number;
+  checkedAt: string;
+  lastSuccessfulAt?: string;
+  negotiatedProtocolVersion?: string;
+  failureCategory?: string;
+  failureMessage?: string;
+  toolCount?: number;
+}
+
 export interface AtlasServer {
   id: string;
   name: string;
@@ -9,6 +23,7 @@ export interface AtlasServer {
   downloads: number;
   qualityScore?: number;
   installCommand: string;
+  health?: AtlasHealth;
 }
 
 interface ServerCardProps {
@@ -38,6 +53,21 @@ export function ServerCard({ server, onOpen }: ServerCardProps): JSX.Element {
           </span>
         ))}
         {server.verified ? <span className="tag verified">Verified</span> : null}
+        {server.health ? (
+          <>
+            <span className={`tag health-${server.health.liveness}`}>
+              Liveness: {server.health.liveness}
+            </span>
+            <span className={`tag health-${server.health.readiness}`}>
+              MCP: {server.health.readiness === "ready" ? "ready" : "not ready"}
+            </span>
+            <span className={`tag health-${server.health.capabilityStatus}`}>
+              Capabilities: {server.health.capabilityStatus.replace("_", " ")}
+            </span>
+          </>
+        ) : (
+          <span className="tag health-unknown">MCP readiness: unverified</span>
+        )}
       </div>
       <div className="server-card__footer">
         <code>{server.installCommand}</code>

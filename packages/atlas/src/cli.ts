@@ -5,6 +5,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { Command } from "commander";
 import { logger } from "@oaslananka/shared";
+import { HealthMonitor } from "./registry/HealthMonitor.js";
 import { RegistryServer } from "./registry/RegistryServer.js";
 import { SEED_SERVERS } from "./registry/seed.js";
 import { ServerStore } from "./registry/ServerStore.js";
@@ -13,6 +14,15 @@ async function openDatabase(dbPath: string): Promise<Database.Database> {
   const absolutePath = path.resolve(dbPath);
   await mkdir(path.dirname(absolutePath), { recursive: true });
   return new Database(absolutePath);
+}
+
+function splitCsv(value: string | undefined): string[] {
+  return (
+    value
+      ?.split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean) ?? []
+  );
 }
 
 const program = new Command();
@@ -49,6 +59,66 @@ program
     const store = new ServerStore(db);
     store.seed(SEED_SERVERS);
     process.stdout.write(`Seeded ${SEED_SERVERS.length} MCP server records\n`);
+  });
+
+const health = program.command("health").description("Run protocol-aware MCP readiness checks");
+
+health
+  .command("check")
+  .argument("<id>", "Registry server identifier")
+  .option(
+    "--stdio-command <path...>",
+    "Exact stdio executable paths allowed for health probes",
+    splitCsv(process.env["ATLAS_HEALTH_STDIO_COMMANDS"])
+  )
+  .option(
+    "--db <path>",
+    "SQLite database path",
+    process.env["ATLAS_DB_PATH"] ?? "./data/atlas.sqlite"
+  )
+  .action(async (id: string, options: { stdioCommand: string[]; db: string }) => {
+    const db = await openDatabase(options.db);
+    try {
+      const store = new ServerStore(db);
+      const monitor = new HealthMonitor(store, { allowedStdioCommands: options.stdioCommand });
+      process.stdout.write(`${JSON.stringify(await monitor.checkServer(id), null, 2)}\n`);
+    } finally {
+      db.close();
+    }
+  });
+
+health
+  .command("check-all")
+  .option(
+    "--stdio-command <path...>",
+    "Exact stdio executable paths allowed for health probes",
+    splitCsv(process.env["ATLAS_HEALTH_STDIO_COMMANDS"])
+  )
+  .option(
+    "--db <path>",
+    "SQLite database path",
+    process.env["ATLAS_DB_PATH"] ?? "./data/atlas.sqlite"
+  )
+  .action(async (options: { stdioCommand: string[]; db: string }) => {
+    const db = await openDatabase(options.db);
+    try {
+      const store = new ServerStore(db);
+      const monitor = new HealthMonitor(store, { allowedStdioCommands: options.stdioCommand });
+      await monitor.checkAll();
+      process.stdout.write(
+        `${JSON.stringify(
+          store.search("", { verified: true }).items.map((server) => ({
+            id: server.id,
+            name: server.name,
+            health: server.health,
+          })),
+          null,
+          2
+        )}\n`
+      );
+    } finally {
+      db.close();
+    }
   });
 
 program

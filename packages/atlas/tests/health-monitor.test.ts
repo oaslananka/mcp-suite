@@ -1,222 +1,552 @@
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import Database from "better-sqlite3";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SafeFetchError, type SafeFetchResult } from "@oaslananka/shared";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { HealthMonitor } from "../src/registry/HealthMonitor.js";
-import { ServerStore } from "../src/registry/ServerStore.js";
+import {
+  ServerStore,
+  type MCPHealthConfig,
+  type MCPServerRecord,
+} from "../src/registry/ServerStore.js";
 
-const lookupMock = vi.hoisted(() => vi.fn());
+const temporaryDirectories: string[] = [];
 
-vi.mock("node:dns/promises", () => ({
-  lookup: lookupMock,
-}));
+function createStore(): ServerStore {
+  return new ServerStore(new Database(":memory:"));
+}
 
-describe("HealthMonitor", () => {
-  const originalFetch = globalThis.fetch;
-
-  beforeEach(() => {
-    lookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
+function addServer(store: ServerStore, healthConfig?: MCPHealthConfig): MCPServerRecord {
+  return store.add({
+    name: `Health Target ${Math.random()}`,
+    packageName: "@example/health-target",
+    version: "1.0.0",
+    description: "Protocol-aware health test target",
+    author: "Tests",
+    transport: healthConfig ? [healthConfig.transport] : ["http"],
+    tags: ["health"],
+    installCommand: "not-used",
+    ...(healthConfig ? { healthConfig } : {}),
+    license: "MIT",
+    verified: true,
+    downloads: 0,
+    rating: 0,
   });
+}
 
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    lookupMock.mockReset();
-    vi.restoreAllMocks();
-    vi.useRealTimers();
-  });
+function httpResult(
+  body: unknown,
+  options: { ok?: boolean; status?: number; headers?: Record<string, string> } = {}
+): SafeFetchResult {
+  return {
+    bodyText: typeof body === "string" ? body : JSON.stringify(body),
+    finalUrl: new URL("https://mcp.example.com/mcp"),
+    headers: new Headers(options.headers ?? {}) as unknown as SafeFetchResult["headers"],
+    ok: options.ok ?? true,
+    status: options.status ?? 200,
+    statusText: options.ok === false ? "Failure" : "OK",
+  };
+}
 
-  it("checks HTTP servers and records uptime", async () => {
-    const store = new ServerStore(new Database(":memory:"));
-    const record = store.add({
-      name: "Atlas API",
-      packageName: "@oaslananka/atlas",
-      version: "1.0.0",
-      description: "Registry API",
-      author: "oaslananka",
-      transport: ["http"],
-      tags: ["registry"],
-      installCommand: "npx -y @oaslananka/atlas",
-      homepage: "https://atlas.example.com",
-      license: "Apache-2.0",
-      verified: true,
-      downloads: 10,
-      rating: 5,
+function initializeResponse(
+  protocolVersion = "2025-11-25",
+  capabilities: Record<string, unknown> = { tools: { listChanged: false } }
+): Record<string, unknown> {
+  return {
+    jsonrpc: "2.0",
+    id: 1,
+    result: {
+      protocolVersion,
+      capabilities,
+      serverInfo: { name: "health-target", version: "1.0.0" },
+    },
+  };
+}
+
+function toolsResponse(): Record<string, unknown> {
+  return {
+    jsonrpc: "2.0",
+    id: 2,
+    result: { tools: [{ name: "ping", inputSchema: { type: "object" } }] },
+  };
+}
+
+function createStdioScript(source: string): string {
+  const directory = mkdtempSync(path.join(tmpdir(), "atlas-stdio-probe-"));
+  temporaryDirectories.push(directory);
+  const script = path.join(directory, "server.mjs");
+  writeFileSync(script, source, "utf8");
+  return script;
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  for (const directory of temporaryDirectories.splice(0)) {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+describe("HealthMonitor MCP readiness", () => {
+  it("performs bounded HTTP initialize and tools/list against the configured MCP endpoint", async () => {
+    const store = createStore();
+    const server = addServer(store, {
+      transport: "http",
+      url: "https://mcp.example.com/mcp",
+      headersFromEnv: { authorization: "ATLAS_TEST_MCP_TOKEN" },
+      timeoutMs: 500,
     });
+    process.env["ATLAS_TEST_MCP_TOKEN"] = "Bearer health-secret";
+    const fetchText = vi
+      .fn()
+      .mockResolvedValueOnce(
+        httpResult(initializeResponse(), { headers: { "mcp-session-id": "session-1" } })
+      )
+      .mockResolvedValueOnce(httpResult("", { status: 202 }))
+      .mockResolvedValueOnce(httpResult(toolsResponse()));
+    const monitor = new HealthMonitor(store, { fetchText: fetchText as never });
 
-    globalThis.fetch = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 200 }));
+    const result = await monitor.checkServer(server.id);
 
-    const monitor = new HealthMonitor(store);
-    const result = await monitor.checkServer(record.id);
-
-    expect(result.status).toBe("online");
-    expect(monitor.getUptime(record.id, 1)).toBe(100);
+    expect(result).toMatchObject({
+      status: "online",
+      liveness: "reachable",
+      readiness: "ready",
+      capabilityStatus: "verified",
+      negotiatedProtocolVersion: "2025-11-25",
+      toolCount: 1,
+    });
+    expect(fetchText).toHaveBeenCalledTimes(3);
+    expect(fetchText.mock.calls[0]?.[0]).toBe("https://mcp.example.com/mcp");
+    expect(JSON.parse(fetchText.mock.calls[0]?.[1].body as string)).toMatchObject({
+      method: "initialize",
+    });
+    expect(JSON.parse(fetchText.mock.calls[1]?.[1].body as string)).toMatchObject({
+      method: "notifications/initialized",
+    });
+    expect(fetchText.mock.calls[2]?.[1].headers).toMatchObject({
+      authorization: "Bearer health-secret",
+      "MCP-Protocol-Version": "2025-11-25",
+      "Mcp-Session-Id": "session-1",
+    });
+    expect(store.findById(server.id)?.health).toMatchObject({ readiness: "ready" });
+    expect(store.findById(server.id)?.qualityScore).toBe(40);
+    delete process.env["ATLAS_TEST_MCP_TOKEN"];
   });
 
-  it("marks failed probes as offline", async () => {
-    const store = new ServerStore(new Database(":memory:"));
-    const record = store.add({
-      name: "Broken API",
-      packageName: "@oaslananka/broken",
-      version: "1.0.0",
-      description: "Broken server",
-      author: "team",
-      transport: ["http"],
-      tags: ["broken"],
-      installCommand: "npx -y @oaslananka/broken",
-      homepage: "https://broken.example.com",
-      license: "Apache-2.0",
-      verified: true,
-      downloads: 0,
-      rating: 0,
+  it("supports JSON-RPC delivered as server-sent event data", async () => {
+    const store = createStore();
+    const server = addServer(store, {
+      transport: "http",
+      url: "https://mcp.example.com/mcp",
     });
-
-    globalThis.fetch = vi.fn<typeof fetch>().mockRejectedValue(new Error("network down"));
-
-    const monitor = new HealthMonitor(store);
-    const result = await monitor.checkServer(record.id);
-
-    expect(result.status).toBe("offline");
-    expect(monitor.getUptime(record.id, 1)).toBe(0);
-  });
-
-  it("blocks private HTTP health-check targets before fetching", async () => {
-    const store = new ServerStore(new Database(":memory:"));
-    const record = store.add({
-      name: "Private API",
-      packageName: "@oaslananka/private",
-      version: "1.0.0",
-      description: "Private server",
-      author: "team",
-      transport: ["http"],
-      tags: ["private"],
-      installCommand: "npx -y @oaslananka/private",
-      homepage: "http://169.254.169.254",
-      license: "Apache-2.0",
-      verified: true,
-      downloads: 0,
-      rating: 0,
-    });
-    globalThis.fetch = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 200 }));
-
-    const monitor = new HealthMonitor(store);
-    const result = await monitor.checkServer(record.id);
-
-    expect(result.status).toBe("offline");
-    expect(globalThis.fetch).not.toHaveBeenCalled();
-  });
-
-  it("blocks redirect-to-private health-check responses", async () => {
-    const store = new ServerStore(new Database(":memory:"));
-    const record = store.add({
-      name: "Redirecting API",
-      packageName: "@oaslananka/redirecting",
-      version: "1.0.0",
-      description: "Redirecting server",
-      author: "team",
-      transport: ["http"],
-      tags: ["redirect"],
-      installCommand: "npx -y @oaslananka/redirecting",
-      homepage: "https://redirect.example.com",
-      license: "Apache-2.0",
-      verified: true,
-      downloads: 0,
-      rating: 0,
-    });
-    globalThis.fetch = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(null, {
-        status: 302,
-        headers: { location: "http://127.0.0.1/health" },
-      })
+    const fetchText = vi
+      .fn()
+      .mockResolvedValue(
+        httpResult(
+          `event: message\ndata: ${JSON.stringify(initializeResponse("2025-11-25", {}))}\n\n`
+        )
+      );
+    const result = await new HealthMonitor(store, { fetchText: fetchText as never }).checkServer(
+      server.id
     );
-
-    const monitor = new HealthMonitor(store);
-    const result = await monitor.checkServer(record.id);
-
-    expect(result.status).toBe("offline");
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      status: "online",
+      readiness: "ready",
+      capabilityStatus: "not_supported",
+    });
+    expect(fetchText).toHaveBeenCalledTimes(2);
   });
 
-  it("checks stdio servers and rejects unknown server ids", async () => {
-    const store = new ServerStore(new Database(":memory:"));
-    const record = store.add({
-      name: "CLI Tool",
-      packageName: "@oaslananka/cli-tool",
-      version: "1.0.0",
-      description: "CLI only server",
-      author: "team",
-      transport: ["stdio"],
-      tags: ["cli"],
-      installCommand: "npx -y @oaslananka/cli-tool",
-      license: "Apache-2.0",
-      verified: true,
-      downloads: 5,
-      rating: 4,
+  it.each([
+    {
+      name: "incompatible protocol",
+      response: initializeResponse("2099-01-01"),
+      category: "incompatible_protocol",
+    },
+    { name: "malformed response", response: "not-json", category: "malformed_response" },
+    {
+      name: "initialize error",
+      response: { jsonrpc: "2.0", id: 1, error: { code: -32603, message: "boom" } },
+      category: "initialize_failed",
+    },
+  ])(
+    "marks reachable but unready HTTP targets as degraded: $name",
+    async ({ response, category }) => {
+      const store = createStore();
+      const server = addServer(store, {
+        transport: "http",
+        url: "https://mcp.example.com/mcp",
+      });
+      const fetchText = vi.fn().mockResolvedValue(httpResult(response));
+      const result = await new HealthMonitor(store, { fetchText: fetchText as never }).checkServer(
+        server.id
+      );
+      expect(result).toMatchObject({
+        status: "degraded",
+        liveness: "reachable",
+        readiness: "not_ready",
+        failureCategory: category,
+      });
+    }
+  );
+
+  it("blocks private HTTP targets through the shared URL policy", async () => {
+    const store = createStore();
+    const server = addServer(store, {
+      transport: "http",
+      url: "https://127.0.0.1/mcp",
     });
-
-    const monitor = new HealthMonitor(store);
-    const result = await monitor.checkServer(record.id);
-
-    expect(result.status).toBe("online");
-    await expect(monitor.checkServer("missing-id")).rejects.toThrow("Server not found");
+    const result = await new HealthMonitor(store).checkServer(server.id);
+    expect(result).toMatchObject({
+      status: "offline",
+      liveness: "unreachable",
+      readiness: "not_ready",
+      failureCategory: "policy_blocked",
+    });
   });
 
-  it("checks only verified servers when running the full sweep", async () => {
-    const store = new ServerStore(new Database(":memory:"));
-    const verified = store.add({
-      name: "Verified API",
-      packageName: "@oaslananka/verified",
-      version: "1.0.0",
-      description: "Verified server",
-      author: "team",
-      transport: ["http"],
-      tags: ["verified"],
-      installCommand: "npx -y @oaslananka/verified",
-      homepage: "https://verified.example.com",
-      license: "Apache-2.0",
-      verified: true,
-      downloads: 1,
-      rating: 5,
+  it("preserves the last successful MCP readiness timestamp after a later timeout", async () => {
+    const store = createStore();
+    const server = addServer(store, {
+      transport: "http",
+      url: "https://mcp.example.com/mcp",
     });
-    store.add({
-      name: "Community API",
-      packageName: "@oaslananka/community",
-      version: "1.0.0",
-      description: "Community server",
-      author: "team",
-      transport: ["http"],
-      tags: ["community"],
-      installCommand: "npx -y @oaslananka/community",
-      homepage: "https://community.example.com",
-      license: "Apache-2.0",
-      verified: false,
-      downloads: 1,
-      rating: 4,
+    const now = new Date("2026-07-20T21:00:00.000Z");
+    const fetchText = vi
+      .fn()
+      .mockResolvedValueOnce(httpResult(initializeResponse("2025-11-25", {})))
+      .mockResolvedValueOnce(httpResult("", { status: 202 }))
+      .mockRejectedValueOnce(new SafeFetchError("Atlas MCP health policy: request timed out"));
+    const monitor = new HealthMonitor(store, { fetchText: fetchText as never, now: () => now });
+    await monitor.checkServer(server.id);
+    const failed = await monitor.checkServer(server.id);
+    expect(failed).toMatchObject({
+      failureCategory: "timeout",
+      lastSuccessfulAt: now,
     });
-
-    const monitor = new HealthMonitor(store);
-    const checkSpy = vi
-      .spyOn(monitor, "checkServer")
-      .mockResolvedValue({ serverId: verified.id, status: "online", responseMs: 1 });
-
-    await monitor.checkAll();
-
-    expect(checkSpy).toHaveBeenCalledTimes(1);
-    expect(checkSpy).toHaveBeenCalledWith(verified.id);
+    expect(monitor.getUptime(server.id, 1)).toBe(50);
   });
 
-  it("schedules recurring checks and stops cleanly", async () => {
-    vi.useFakeTimers();
-    const store = new ServerStore(new Database(":memory:"));
+  it("performs a direct no-shell stdio initialize and tools/list handshake", async () => {
+    const script = createStdioScript(`
+      import readline from "node:readline";
+      const lines = readline.createInterface({ input: process.stdin });
+      lines.on("line", (line) => {
+        const message = JSON.parse(line);
+        if (message.method === "initialize") {
+          process.stdout.write(JSON.stringify(${JSON.stringify(initializeResponse())}) + "\\n");
+        } else if (message.method === "tools/list") {
+          process.stdout.write(JSON.stringify(${JSON.stringify(toolsResponse())}) + "\\n");
+        }
+      });
+    `);
+    const store = createStore();
+    const server = addServer(store, {
+      transport: "stdio",
+      command: process.execPath,
+      args: [script],
+      timeoutMs: 1_000,
+    });
+    const result = await new HealthMonitor(store, {
+      allowedStdioCommands: [process.execPath],
+    }).checkServer(server.id);
+    expect(result).toMatchObject({
+      status: "online",
+      readiness: "ready",
+      capabilityStatus: "verified",
+      toolCount: 1,
+    });
+  });
+
+  it.each([
+    {
+      name: "malformed output",
+      source: `process.stdin.once("data", () => process.stdout.write("not-json\\n"));`,
+      category: "malformed_response",
+    },
+    {
+      name: "failed command",
+      source: `process.stdin.once("data", () => process.exit(2));`,
+      category: "command_failed",
+    },
+    {
+      name: "stderr output limit",
+      source: `process.stdin.once("data", () => process.stderr.write("x".repeat(2000)));`,
+      category: "output_limit",
+      maxOutputBytes: 128,
+    },
+    {
+      name: "timeout",
+      source: `process.stdin.resume();`,
+      category: "timeout",
+    },
+    {
+      name: "output limit",
+      source: `process.stdin.once("data", () => process.stdout.write("x".repeat(2000) + "\\n"));`,
+      category: "output_limit",
+      maxOutputBytes: 128,
+    },
+  ])("classifies bounded stdio failures: $name", async ({ source, category, maxOutputBytes }) => {
+    const script = createStdioScript(source);
+    const store = createStore();
+    const server = addServer(store, {
+      transport: "stdio",
+      command: process.execPath,
+      args: [script],
+      timeoutMs: category === "timeout" ? 150 : 1_000,
+      ...(maxOutputBytes ? { maxOutputBytes } : {}),
+    });
+    const result = await new HealthMonitor(store, {
+      allowedStdioCommands: [process.execPath],
+    }).checkServer(server.id);
+    expect(result).toMatchObject({ readiness: "not_ready", failureCategory: category });
+  });
+
+  it("force-kills a stdio process that ignores graceful termination after timeout", async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "atlas-stdio-kill-"));
+    temporaryDirectories.push(directory);
+    const pidFile = path.join(directory, "pid.txt");
+    const script = path.join(directory, "server.mjs");
+    writeFileSync(
+      script,
+      `
+        import { writeFileSync } from "node:fs";
+        writeFileSync(process.argv[2], String(process.pid));
+        process.on("SIGTERM", () => {});
+        process.stdin.resume();
+      `,
+      "utf8"
+    );
+    const store = createStore();
+    const server = addServer(store, {
+      transport: "stdio",
+      command: process.execPath,
+      args: [script, pidFile],
+      timeoutMs: 500,
+    });
+
+    await expect(
+      new HealthMonitor(store, { allowedStdioCommands: [process.execPath] }).checkServer(server.id)
+    ).resolves.toMatchObject({ failureCategory: "timeout" });
+    await vi.waitFor(() => expect(existsSync(pidFile)).toBe(true));
+    const pid = Number(readFileSync(pidFile, "utf8"));
+    await vi.waitFor(
+      () => {
+        expect(() => process.kill(pid, 0)).toThrow();
+      },
+      { timeout: 2_000 }
+    );
+  });
+
+  it("fails closed for missing configuration and non-allowlisted stdio commands", async () => {
+    const store = createStore();
+    const unconfigured = addServer(store);
+    const command = addServer(store, {
+      transport: "stdio",
+      command: process.execPath,
+      args: ["missing.mjs"],
+    });
     const monitor = new HealthMonitor(store);
-    const checkAllSpy = vi.spyOn(monitor, "checkAll").mockResolvedValue(undefined);
+    await expect(monitor.checkServer(unconfigured.id)).resolves.toMatchObject({
+      failureCategory: "unconfigured",
+    });
+    await expect(monitor.checkServer(command.id)).resolves.toMatchObject({
+      failureCategory: "command_not_allowed",
+    });
+  });
 
-    await monitor.start(25);
-    await vi.advanceTimersByTimeAsync(80);
-    const callCountAfterStart = checkAllSpy.mock.calls.length;
+  it("handles empty uptime windows, missing records, and scheduler cleanup", async () => {
+    const store = createStore();
+    const monitor = new HealthMonitor(store);
 
-    expect(callCountAfterStart).toBeGreaterThanOrEqual(3);
+    expect(monitor.getUptime("missing", 1)).toBe(0);
+    expect(() => monitor.getUptime("missing", 0)).toThrow("uptime days must be a positive integer");
+    await expect(monitor.checkServer("missing")).rejects.toThrow("Server not found");
 
+    await monitor.start(60_000);
     await monitor.stop();
-    await vi.advanceTimersByTimeAsync(80);
+    await monitor.stop();
+    await expect(monitor.start(0)).rejects.toThrow("health interval must be a positive integer");
+  });
 
-    expect(checkAllSpy).toHaveBeenCalledTimes(callCountAfterStart);
+  it.each([
+    {
+      name: "initialize HTTP failure",
+      responses: [httpResult("unavailable", { ok: false, status: 503 })],
+      category: "transport_error",
+    },
+    {
+      name: "initialized notification failure",
+      responses: [
+        httpResult(initializeResponse("2025-11-25", {})),
+        httpResult("rejected", { ok: false, status: 500 }),
+      ],
+      category: "initialize_failed",
+    },
+    {
+      name: "tools HTTP failure",
+      responses: [
+        httpResult(initializeResponse()),
+        httpResult("", { status: 202 }),
+        httpResult("unavailable", { ok: false, status: 503 }),
+      ],
+      category: "capability_failed",
+    },
+    {
+      name: "tools JSON-RPC failure",
+      responses: [
+        httpResult(initializeResponse()),
+        httpResult("", { status: 202 }),
+        httpResult({ jsonrpc: "2.0", id: 2, error: { code: -32603, message: "boom" } }),
+      ],
+      category: "capability_failed",
+    },
+  ])("classifies HTTP lifecycle failures: $name", async ({ responses, category }) => {
+    const store = createStore();
+    const server = addServer(store, {
+      transport: "http",
+      url: "https://mcp.example.com/mcp",
+    });
+    const fetchText = vi.fn();
+    for (const response of responses) fetchText.mockResolvedValueOnce(response);
+
+    await expect(
+      new HealthMonitor(store, { fetchText: fetchText as never }).checkServer(server.id)
+    ).resolves.toMatchObject({ readiness: "not_ready", failureCategory: category });
+  });
+
+  it("keeps HTTP liveness reachable when tools verification times out after initialize", async () => {
+    const store = createStore();
+    const server = addServer(store, {
+      transport: "http",
+      url: "https://mcp.example.com/mcp",
+    });
+    const fetchText = vi
+      .fn()
+      .mockResolvedValueOnce(httpResult(initializeResponse()))
+      .mockResolvedValueOnce(httpResult("", { status: 202 }))
+      .mockRejectedValueOnce(new SafeFetchError("Atlas MCP health policy: request timed out"));
+
+    await expect(
+      new HealthMonitor(store, { fetchText: fetchText as never }).checkServer(server.id)
+    ).resolves.toMatchObject({
+      status: "degraded",
+      liveness: "reachable",
+      readiness: "not_ready",
+      failureCategory: "timeout",
+    });
+  });
+
+  it("keeps stdio liveness reachable when tools verification times out after initialize", async () => {
+    const script = createStdioScript(`
+      import readline from "node:readline";
+      const lines = readline.createInterface({ input: process.stdin });
+      lines.on("line", (line) => {
+        const message = JSON.parse(line);
+        if (message.method === "initialize") {
+          process.stdout.write(JSON.stringify(${JSON.stringify(initializeResponse())}) + "\\n");
+        }
+      });
+    `);
+    const store = createStore();
+    const server = addServer(store, {
+      transport: "stdio",
+      command: process.execPath,
+      args: [script],
+      timeoutMs: 500,
+    });
+
+    await expect(
+      new HealthMonitor(store, { allowedStdioCommands: [process.execPath] }).checkServer(server.id)
+    ).resolves.toMatchObject({
+      status: "degraded",
+      liveness: "reachable",
+      readiness: "not_ready",
+      failureCategory: "timeout",
+    });
+  });
+
+  it("classifies generic HTTP failures and missing credential environments", async () => {
+    const store = createStore();
+    const transportFailure = addServer(store, {
+      transport: "http",
+      url: "https://mcp.example.com/mcp",
+    });
+    const missingCredential = addServer(store, {
+      transport: "http",
+      url: "https://mcp.example.com/mcp",
+      headersFromEnv: { authorization: "ATLAS_MISSING_HEALTH_TOKEN" },
+    });
+
+    await expect(
+      new HealthMonitor(store, {
+        fetchText: vi.fn().mockRejectedValue(new Error("network failure")) as never,
+      }).checkServer(transportFailure.id)
+    ).resolves.toMatchObject({
+      status: "offline",
+      liveness: "unreachable",
+      failureCategory: "transport_error",
+    });
+    await expect(new HealthMonitor(store).checkServer(missingCredential.id)).resolves.toMatchObject(
+      {
+        liveness: "unknown",
+        failureCategory: "unconfigured",
+      }
+    );
+  });
+
+  it("initializes stdio servers without tools using explicitly mapped environment", async () => {
+    process.env["ATLAS_STDIO_HEALTH_TOKEN"] = "mapped-secret";
+    const script = createStdioScript(`
+      import readline from "node:readline";
+      const lines = readline.createInterface({ input: process.stdin });
+      lines.on("line", (line) => {
+        const message = JSON.parse(line);
+        if (message.method === "initialize" && process.env.HEALTH_TOKEN === "mapped-secret") {
+          process.stdout.write(JSON.stringify(${JSON.stringify(initializeResponse("2025-11-25", {}))}) + "\\n");
+        }
+      });
+    `);
+    const store = createStore();
+    const server = addServer(store, {
+      transport: "stdio",
+      command: process.execPath,
+      args: [script],
+      envFrom: { HEALTH_TOKEN: "ATLAS_STDIO_HEALTH_TOKEN" },
+      timeoutMs: 1_000,
+    });
+
+    await expect(
+      new HealthMonitor(store, { allowedStdioCommands: [process.execPath] }).checkServer(server.id)
+    ).resolves.toMatchObject({
+      status: "online",
+      readiness: "ready",
+      capabilityStatus: "not_supported",
+    });
+    delete process.env["ATLAS_STDIO_HEALTH_TOKEN"];
+  });
+
+  it("fails closed for invalid stdio arguments and missing mapped environment", async () => {
+    const store = createStore();
+    const invalidArguments = addServer(store, {
+      transport: "stdio",
+      command: process.execPath,
+      args: Array.from({ length: 101 }, () => "argument"),
+    });
+    const missingEnvironment = addServer(store, {
+      transport: "stdio",
+      command: process.execPath,
+      args: ["missing.mjs"],
+      envFrom: { HEALTH_TOKEN: "ATLAS_MISSING_STDIO_TOKEN" },
+    });
+    const monitor = new HealthMonitor(store, { allowedStdioCommands: [process.execPath] });
+
+    await expect(monitor.checkServer(invalidArguments.id)).resolves.toMatchObject({
+      failureCategory: "unconfigured",
+    });
+    await expect(monitor.checkServer(missingEnvironment.id)).resolves.toMatchObject({
+      failureCategory: "unconfigured",
+    });
   });
 });

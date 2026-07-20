@@ -145,6 +145,15 @@ function ServerDetailPage({ serverId }: { serverId: string }): JSX.Element {
     return <section className="detail-shell">Loading server details...</section>;
   }
 
+  let readinessLabel = "not checked";
+  if (server.health?.readiness === "ready") {
+    readinessLabel = "initialize succeeded";
+  } else if (server.health?.failureCategory) {
+    readinessLabel = server.health.failureCategory;
+  }
+  const toolCountLabel =
+    server.health?.toolCount === undefined ? "" : ` (${server.health.toolCount} tools)`;
+
   return (
     <section className="detail-shell">
       <button type="button" className="ghost-button" onClick={() => navigate("/")}>
@@ -176,7 +185,37 @@ function ServerDetailPage({ serverId }: { serverId: string }): JSX.Element {
             <h3>Verification</h3>
             <p>{server.verified ? "Verified registry entry" : "Community submission"}</p>
           </div>
+          <div>
+            <h3>MCP liveness</h3>
+            <p>{server.health?.liveness ?? "not checked"}</p>
+          </div>
+          <div>
+            <h3>MCP readiness</h3>
+            <p>{readinessLabel}</p>
+          </div>
+          <div>
+            <h3>Capability verification</h3>
+            <p>
+              {server.health?.capabilityStatus ?? "not checked"}
+              {toolCountLabel}
+            </p>
+          </div>
+          <div>
+            <h3>Protocol</h3>
+            <p>{server.health?.negotiatedProtocolVersion ?? "not negotiated"}</p>
+          </div>
+          <div>
+            <h3>Last successful MCP check</h3>
+            <p>
+              {server.health?.lastSuccessfulAt
+                ? new Date(server.health.lastSuccessfulAt).toLocaleString()
+                : "none"}
+            </p>
+          </div>
         </div>
+        {server.health?.failureMessage ? (
+          <output className="health-failure">Last check: {server.health.failureMessage}</output>
+        ) : null}
         <div className="tag-stack">
           {server.tags.map((tag) => (
             <span key={tag} className="tag muted">

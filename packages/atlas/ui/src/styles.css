@@ -296,3 +296,32 @@ code {
     padding: 18px 14px 42px;
   }
 }
+
+.tag.health-reachable,
+.tag.health-ready,
+.tag.health-verified {
+  background: #d8f3e4;
+  color: #0d4d2f;
+}
+
+.tag.health-unreachable,
+.tag.health-not_ready,
+.tag.health-failed {
+  background: #f8d8d3;
+  color: #6d1f18;
+}
+
+.tag.health-unknown,
+.tag.health-not_supported,
+.tag.health-not_checked {
+  background: #ece7df;
+  color: #49382b;
+}
+
+.health-failure {
+  border-left: 4px solid #b1382a;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fde2de;
+  color: #641a14;
+}
