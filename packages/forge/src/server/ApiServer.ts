@@ -1,9 +1,9 @@
 import express from "express";
 import type { Express, Request, Response, NextFunction } from "express";
 import cors from "cors";
-import { WebSocketServer } from "ws";
-import type { WebSocket } from "ws";
 import type { Server } from "http";
+import { ForgeAuthPolicy, type ForgePrincipal } from "./AuthPolicy.js";
+import { ForgeWebSocketHub, type ForgeWebSocketOptionsInput } from "./WebSocketHub.js";
 import type { ForgeEngine } from "../engine/ForgeEngine.js";
 import { PipelineConfigSchema } from "../dsl/schema.js";
 import type { RunStore } from "../runtime/RunStore.js";
@@ -13,16 +13,19 @@ import path from "path";
 export interface ApiServerOptions {
   allowedOrigins?: string[];
   authToken?: string;
+  authTokens?: Record<string, ForgePrincipal>;
   jsonBodyLimit?: string;
   rateLimit?: { windowMs: number; max: number };
+  webSocket?: ForgeWebSocketOptionsInput;
 }
 
 export class ApiServer {
   private app: Express;
-  private server?: Server;
-  private wss?: WebSocketServer;
+  private server: Server | undefined;
+  private webSocketHub: ForgeWebSocketHub | undefined;
   private readonly allowedOrigins: string[];
-  private readonly authToken: string | undefined;
+  private readonly authPolicy: ForgeAuthPolicy;
+  private readonly webSocketOptions: ForgeWebSocketOptionsInput;
   private readonly jsonBodyLimit: string;
   private readonly rateLimit: { windowMs: number; max: number };
   private readonly requestLog = new Map<string, number[]>();
@@ -33,7 +36,15 @@ export class ApiServer {
     options: ApiServerOptions = {}
   ) {
     this.allowedOrigins = options.allowedOrigins ?? splitCsv(process.env["FORGE_ALLOWED_ORIGINS"]);
-    this.authToken = options.authToken ?? process.env["FORGE_API_TOKEN"];
+    const configuredAuthToken = options.authToken ?? process.env["FORGE_API_TOKEN"];
+    this.authPolicy = new ForgeAuthPolicy({
+      ...(configuredAuthToken ? { authToken: configuredAuthToken } : {}),
+      ...(options.authTokens ? { authTokens: options.authTokens } : {}),
+    });
+    this.webSocketOptions = mergeWebSocketOptions(
+      readWebSocketOptionsFromEnvironment(),
+      options.webSocket ?? {}
+    );
     this.jsonBodyLimit = options.jsonBodyLimit ?? "100kb";
     this.rateLimit = options.rateLimit ?? { windowMs: 60_000, max: 120 };
     this.app = express();
@@ -189,14 +200,20 @@ export class ApiServer {
   }
 
   private authenticate(req: Request, res: Response, next: NextFunction): void {
-    if (!this.authToken) {
+    if (!this.authPolicy.isConfigured()) {
       res.status(503).json({ error: "Forge API token is not configured" });
       return;
     }
 
-    const authorization = req.headers.authorization ?? "";
-    if (authorization !== `Bearer ${this.authToken}`) {
+    const principal = this.authPolicy.resolveBearer(req.headers.authorization);
+    if (!principal) {
       res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const requiredScope = req.method === "GET" || req.method === "HEAD" ? "api:read" : "api:write";
+    if (!this.authPolicy.hasScope(principal, requiredScope)) {
+      res.status(403).json({ error: "Insufficient scope" });
       return;
     }
 
@@ -232,35 +249,54 @@ export class ApiServer {
   }
 
   async listen(port: number): Promise<void> {
-    return new Promise((resolve) => {
-      this.server = this.app.listen(port, () => {
-        logger.info(`Forge API Server listening on port ${port}`);
-
-        this.wss = new WebSocketServer({ server: this.server });
-        this.wss.on("connection", (ws: WebSocket) => {
-          logger.info("WebSocket client connected");
-          ws.send(JSON.stringify({ type: "connected" }));
-        });
-
-        resolve();
+    return new Promise((resolve, reject) => {
+      const server = this.app.listen(port);
+      this.server = server;
+      const onError = (error: Error): void => {
+        this.server = undefined;
+        reject(error);
+      };
+      server.once("error", onError);
+      server.once("listening", () => {
+        server.off("error", onError);
+        try {
+          this.webSocketHub = new ForgeWebSocketHub(server, this.authPolicy, {
+            allowedOrigins: this.allowedOrigins,
+            ...this.webSocketOptions,
+          });
+          logger.info(`Forge API Server listening on port ${port}`);
+          resolve();
+        } catch (error: unknown) {
+          this.server = undefined;
+          server.close(() => reject(error));
+        }
       });
     });
   }
 
   async close(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (this.wss) {
-        this.wss.close();
-      }
-      if (this.server) {
-        this.server.close((err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      } else {
+    await this.webSocketHub?.close();
+    this.webSocketHub = undefined;
+
+    const server = this.server;
+    this.server = undefined;
+    if (!server) {
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
         resolve();
-      }
+      });
     });
+  }
+
+  broadcastEvent(category: string, payload: unknown): number {
+    return this.webSocketHub?.broadcastEvent(category, payload) ?? 0;
   }
 }
 
@@ -283,4 +319,103 @@ function splitCsv(value: string | undefined): string[] {
       .map((entry) => entry.trim())
       .filter(Boolean) ?? []
   );
+}
+
+function readWebSocketOptionsFromEnvironment(): ForgeWebSocketOptionsInput {
+  const result: ForgeWebSocketOptionsInput = {};
+  const allowedCategories = splitCsv(process.env["FORGE_WS_ALLOWED_CATEGORIES"]);
+  if (allowedCategories.length > 0) {
+    result.allowedCategories = allowedCategories;
+  }
+
+  const allowMissingOrigin = readBooleanEnvironment("FORGE_WS_ALLOW_MISSING_ORIGIN");
+  if (allowMissingOrigin !== undefined) {
+    result.allowMissingOrigin = allowMissingOrigin;
+  }
+
+  assignPositiveIntegerEnvironment(result, "idleTimeoutMs", "FORGE_WS_IDLE_TIMEOUT_MS");
+  assignPositiveIntegerEnvironment(result, "maxConnections", "FORGE_WS_MAX_CONNECTIONS");
+  assignPositiveIntegerEnvironment(
+    result,
+    "maxConnectionsPerPrincipal",
+    "FORGE_WS_MAX_CONNECTIONS_PER_PRINCIPAL"
+  );
+  assignPositiveIntegerEnvironment(result, "maxPayloadBytes", "FORGE_WS_MAX_PAYLOAD_BYTES");
+  assignPositiveIntegerEnvironment(result, "maxQueueBytes", "FORGE_WS_MAX_QUEUE_BYTES");
+  assignPositiveIntegerEnvironment(result, "maxSubscriptions", "FORGE_WS_MAX_SUBSCRIPTIONS");
+  assignPositiveIntegerEnvironment(result, "pingIntervalMs", "FORGE_WS_PING_INTERVAL_MS");
+
+  const messageRateMax = readPositiveIntegerEnvironment("FORGE_WS_MESSAGE_RATE_MAX");
+  const messageRateWindowMs = readPositiveIntegerEnvironment("FORGE_WS_MESSAGE_RATE_WINDOW_MS");
+  if (messageRateMax !== undefined || messageRateWindowMs !== undefined) {
+    result.messageRateLimit = {
+      ...(messageRateMax !== undefined ? { max: messageRateMax } : {}),
+      ...(messageRateWindowMs !== undefined ? { windowMs: messageRateWindowMs } : {}),
+    };
+  }
+
+  const path = process.env["FORGE_WS_PATH"];
+  if (path) {
+    result.path = path;
+  }
+  return result;
+}
+
+function assignPositiveIntegerEnvironment(
+  target: ForgeWebSocketOptionsInput,
+  key:
+    | "idleTimeoutMs"
+    | "maxConnections"
+    | "maxConnectionsPerPrincipal"
+    | "maxPayloadBytes"
+    | "maxQueueBytes"
+    | "maxSubscriptions"
+    | "pingIntervalMs",
+  environmentName: string
+): void {
+  const value = readPositiveIntegerEnvironment(environmentName);
+  if (value !== undefined) {
+    target[key] = value;
+  }
+}
+
+function mergeWebSocketOptions(
+  environment: ForgeWebSocketOptionsInput,
+  configured: ForgeWebSocketOptionsInput
+): ForgeWebSocketOptionsInput {
+  const messageRateLimit = {
+    ...environment.messageRateLimit,
+    ...configured.messageRateLimit,
+  };
+  return {
+    ...environment,
+    ...configured,
+    ...(Object.keys(messageRateLimit).length > 0 ? { messageRateLimit } : {}),
+  };
+}
+
+function readPositiveIntegerEnvironment(name: string): number | undefined {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") {
+    return undefined;
+  }
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  return value;
+}
+
+function readBooleanEnvironment(name: string): boolean | undefined {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") {
+    return undefined;
+  }
+  if (raw === "true") {
+    return true;
+  }
+  if (raw === "false") {
+    return false;
+  }
+  throw new Error(`${name} must be true or false`);
 }

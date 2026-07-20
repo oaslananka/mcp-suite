@@ -29,3 +29,5 @@ export * from "./runtime/RunContext.js";
 export * from "./runtime/RunStore.js";
 export * from "./runtime/Scheduler.js";
 export * from "./server/ApiServer.js";
+export * from "./server/AuthPolicy.js";
+export * from "./server/WebSocketHub.js";
