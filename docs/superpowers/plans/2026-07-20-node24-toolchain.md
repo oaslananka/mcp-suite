@@ -21,6 +21,7 @@
 ### Task 1: Canonical contract and dependency-free validator
 
 **Files:**
+
 - Create: `.tool-versions`
 - Create: `scripts/toolchain-contract.mjs`
 - Create: `scripts/toolchain-contract.test.mjs`
@@ -29,32 +30,36 @@
 - Create: `.npmrc`
 
 **Interfaces:**
+
 - Produces: `readToolVersions(text)`, `assertExactVersion(actual, expected, label)`, `validateRepository(rootDir, contract)`, and CLI modes `--runtime`/`--repository`/`--all`.
 
-- [ ] Write Node test-runner tests for parsing, mismatch diagnostics, and forbidden Node 20/22 configuration.
-- [ ] Run `node --test scripts/toolchain-contract.test.mjs` and verify failure because the module is missing.
-- [ ] Implement the minimal parser and validators.
-- [ ] Add strict root engines, package scripts, `.npmrc`, and `.tool-versions`.
-- [ ] Run the focused tests and repository validation.
-- [ ] Commit the task.
+- [x] Write Node test-runner tests for parsing, mismatch diagnostics, and forbidden Node 20/22 configuration.
+- [x] Run `node --test scripts/toolchain-contract.test.mjs` and verify failure because the module is missing.
+- [x] Implement the minimal parser and validators.
+- [x] Add strict root engines, package scripts, `.npmrc`, and `.tool-versions`.
+- [x] Run the focused tests and repository validation.
+- [x] Commit the task.
 
 ### Task 2: Native ABI smoke check
 
 **Files:**
+
 - Create: `scripts/verify-native-modules.mjs`
 - Modify: `package.json`
 
 **Interfaces:**
+
 - Produces: `pnpm run toolchain:check:native`, which loads `better-sqlite3`, executes `SELECT 1`, and reports Node ABI diagnostics.
 
-- [ ] Add a testable failure path for an incompatible or missing native module.
-- [ ] Implement the in-memory SQLite smoke check.
-- [ ] Run it after a clean install under Node `24.18.0`.
-- [ ] Commit the task.
+- [x] Add a testable failure path for an incompatible or missing native module.
+- [x] Implement the in-memory SQLite smoke check.
+- [x] Run it after a clean install under Node `24.18.0`.
+- [x] Commit the task.
 
 ### Task 3: Automation and devcontainer alignment
 
 **Files:**
+
 - Modify: `.github/workflows/ci.yml`
 - Modify: `.github/workflows/docs.yml`
 - Modify: `.github/workflows/publish.yml`
@@ -65,24 +70,27 @@
 - Modify: `.devcontainer/devcontainer.json`
 
 **Interfaces:**
+
 - Consumes: `.tool-versions`, `node scripts/verify-toolchain.mjs`, `pnpm run toolchain:check:native`.
 
-- [ ] Make GitHub setup steps use exact versions and print runtime/ABI diagnostics.
-- [ ] Make the Azure setup template read `.tool-versions`, set pipeline variables, validate runtime, install, and validate native modules.
-- [ ] Remove Node 20/22 selections from active Azure/devcontainer configuration.
-- [ ] Run repository validation and workflow formatting checks.
-- [ ] Commit the task.
+- [x] Make GitHub setup steps use exact versions and print runtime/ABI diagnostics.
+- [x] Make the Azure setup template read `.tool-versions`, set pipeline variables, validate runtime, install, and validate native modules.
+- [x] Remove Node 20/22 selections from active Azure/devcontainer configuration.
+- [x] Run repository validation and workflow formatting checks.
+- [x] Commit the task.
 
 ### Task 4: Contributor recovery documentation and full verification
 
 **Files:**
+
 - Modify: `docs/development.md`
 - Modify: `docs/guide/installation.md`
 - Modify: `docs/adr/0002-standardize-on-node-24-pnpm-turborepo.md`
 
 **Interfaces:**
+
 - Documents: `mise install`, `mise exec -- pnpm install --frozen-lockfile`, and native-module cleanup/reinstall commands.
 
-- [ ] Document clean bootstrap and stale ABI recovery.
-- [ ] Run format, lint, typecheck, build, coverage, security, knip, registry/Smithery validation, and release dry-run under the canonical runtime.
+- [x] Document clean bootstrap and stale ABI recovery.
+- [x] Run format, lint, typecheck, build, coverage, security, knip, registry/Smithery validation, and release dry-run under the canonical runtime.
 - [ ] Push the branch and open a PR linked to issue #34 with validation evidence.

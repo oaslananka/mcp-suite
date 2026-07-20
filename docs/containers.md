@@ -46,14 +46,14 @@ docker buildx imagetools inspect docker.io/library/node:24-alpine
 
 ## Base Image Updates
 
-Dockerfiles and demo compose services pin `node:24-alpine` by OCI index digest:
+Dockerfiles and demo compose services pin the Node.js `24.18.0` `node:24-alpine` multi-architecture OCI index by digest:
 
 ```text
-sha256:2bdb65ed1dab192432bc31c95f94155ca5ad7fc1392fb7eb7526ab682fa5bf14
+sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd
 ```
 
 Update the digest only after inspecting the current official Node image and
-confirming that the index still includes `linux/amd64` and `linux/arm64`.
+confirming that both `linux/amd64` and `linux/arm64` configs report `NODE_VERSION=24.18.0`.
 
 ```bash
 docker buildx imagetools inspect docker.io/library/node:24-alpine
