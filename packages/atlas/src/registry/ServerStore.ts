@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
 import type { JSONSchema7 } from "@oaslananka/shared";
 
@@ -296,7 +297,7 @@ export class ServerStore {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
-        `${snapshot.checkedAt.getTime()}-${serverId}-${Math.random().toString(16).slice(2)}`,
+        randomUUID(),
         serverId,
         snapshot.status,
         snapshot.responseMs,

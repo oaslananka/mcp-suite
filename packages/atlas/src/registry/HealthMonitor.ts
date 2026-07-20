@@ -45,6 +45,7 @@ const HTTP_CONTENT_TYPES = ["application/json", "text/event-stream"];
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 1_000_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
+const ENVIRONMENT_NAME_PATTERN = /^[A-Za-z_]\w*$/;
 const RESERVED_MCP_HEADERS = new Set([
   "host",
   "content-length",
@@ -665,7 +666,7 @@ function resolveHeadersFromEnvironment(
     if (
       !/^[A-Za-z0-9-]{1,100}$/.test(header) ||
       RESERVED_MCP_HEADERS.has(header.toLowerCase()) ||
-      !/^[A-Za-z_][A-Za-z0-9_]*$/.test(environmentName)
+      !ENVIRONMENT_NAME_PATTERN.test(environmentName)
     ) {
       throw new ProbeFailure("unconfigured", "unknown", "MCP HTTP secret mapping is invalid");
     }
@@ -685,10 +686,7 @@ function resolveHeadersFromEnvironment(
 function resolveEnvironment(mapping: Record<string, string> | undefined): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = {};
   for (const [targetName, sourceName] of Object.entries(mapping ?? {})) {
-    if (
-      !/^[A-Za-z_][A-Za-z0-9_]*$/.test(targetName) ||
-      !/^[A-Za-z_][A-Za-z0-9_]*$/.test(sourceName)
-    ) {
+    if (!ENVIRONMENT_NAME_PATTERN.test(targetName) || !ENVIRONMENT_NAME_PATTERN.test(sourceName)) {
       throw new ProbeFailure("unconfigured", "unknown", "MCP stdio environment mapping is invalid");
     }
     const value = process.env[sourceName];

@@ -472,6 +472,7 @@ function validPositiveOptional(value: number | undefined): boolean {
   return value === undefined || (Number.isInteger(value) && value > 0);
 }
 
+const ENVIRONMENT_NAME_PATTERN = /^[A-Za-z_]\w*$/;
 const RESERVED_HEALTH_HEADERS = new Set([
   "host",
   "content-length",
@@ -491,9 +492,9 @@ function validEnvironmentMapping(
     ([target, source]) =>
       (allowHeaderNames
         ? /^[A-Za-z0-9-]{1,100}$/.test(target) && !RESERVED_HEALTH_HEADERS.has(target.toLowerCase())
-        : /^[A-Za-z_][A-Za-z0-9_]*$/.test(target)) &&
+        : ENVIRONMENT_NAME_PATTERN.test(target)) &&
       typeof source === "string" &&
-      /^[A-Za-z_][A-Za-z0-9_]*$/.test(source)
+      ENVIRONMENT_NAME_PATTERN.test(source)
   );
 }
 

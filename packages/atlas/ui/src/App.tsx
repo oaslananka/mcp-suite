@@ -214,9 +214,7 @@ function ServerDetailPage({ serverId }: { serverId: string }): JSX.Element {
           </div>
         </div>
         {server.health?.failureMessage ? (
-          <p className="health-failure" role="status">
-            Last check: {server.health.failureMessage}
-          </p>
+          <output className="health-failure">Last check: {server.health.failureMessage}</output>
         ) : null}
         <div className="tag-stack">
           {server.tags.map((tag) => (
