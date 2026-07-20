@@ -30,3 +30,9 @@ protocol-version strings.
 
 Revisit this decision when the MCP specification publishes a new stable protocol
 version or when the legacy compatibility window is intentionally closed.
+
+## Streamable HTTP boundary
+
+For `2025-11-25`, the suite uses the official TypeScript SDK v1 Streamable HTTP client transport and preserves the specification's session model. Deprecated HTTP+SSE behavior is available only through an explicit compatibility mode and is covered separately in tests.
+
+The July 2026 stateless draft is not treated as a patch-level behavior change. Adopting it requires a new supported protocol version, dedicated conformance tests, and an explicit migration decision.

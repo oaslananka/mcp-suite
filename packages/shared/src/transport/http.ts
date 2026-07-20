@@ -1,195 +1,168 @@
-import { EventEmitter } from "events";
-import { Transport } from "./transport.js";
-import { JSONRPCMessage } from "../protocol/jsonrpc.js";
-import { v4 as uuidv4 } from "uuid";
+import { EventEmitter } from "node:events";
+import {
+  StreamableHTTPClientTransport,
+  type StreamableHTTPClientTransportOptions,
+} from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import type { JSONRPCMessage as SDKJSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
+import type { JSONRPCMessage } from "../protocol/jsonrpc.js";
 import { LATEST_PROTOCOL_VERSION } from "../protocol/version.js";
+import type { Transport } from "./transport.js";
+
+export type HTTPCompatibilityMode = "streamable-http" | "legacy-http-sse";
 
 export interface HTTPTransportOptions {
   url: string;
   headers?: Record<string, string>;
+  compatibilityMode?: HTTPCompatibilityMode;
+  legacySseUrl?: string;
   reconnect?: boolean;
   maxReconnectAttempts?: number;
   reconnectDelayMs?: number;
   reconnectBackoffFactor?: number;
+  fetch?: typeof globalThis.fetch;
+  terminateSessionOnClose?: boolean;
 }
 
-/**
- * Basic StreamableHTTPTransport using EventSource (SSE) for server->client
- * and POST requests for client->server.
- */
+type SDKTransport = StreamableHTTPClientTransport | SSEClientTransport;
+
+/** MCP 2025-11-25 Streamable HTTP transport backed by the official SDK. */
 export class StreamableHTTPTransport extends EventEmitter implements Transport {
-  private readonly url: string;
-  private headers: Record<string, string>;
-  private readonly sessionId: string;
-  private abortController?: AbortController;
-  private reconnectOpts: {
+  private readonly options: HTTPTransportOptions;
+  private protocolVersion = LATEST_PROTOCOL_VERSION;
+  private reconnectPolicy: {
     enabled: boolean;
     maxAttempts: number;
     delayMs: number;
     backoffFactor: number;
   };
-  private reconnectAttempts = 0;
-  private isClosing = false;
-  private protocolVersion = LATEST_PROTOCOL_VERSION;
+  private delegate: SDKTransport | undefined;
+  private started = false;
+  private closed = false;
 
   constructor(options: HTTPTransportOptions) {
     super();
-    this.url = options.url;
-    this.headers = options.headers || {};
-    this.sessionId = uuidv4();
-    this.reconnectOpts = {
-      enabled: options.reconnect !== false,
-      maxAttempts: options.maxReconnectAttempts || 5,
-      delayMs: options.reconnectDelayMs || 1000,
-      backoffFactor: options.reconnectBackoffFactor || 2,
+    this.options = options;
+    this.reconnectPolicy = {
+      enabled: options.reconnect ?? true,
+      maxAttempts: options.maxReconnectAttempts ?? 5,
+      delayMs: options.reconnectDelayMs ?? 1_000,
+      backoffFactor: options.reconnectBackoffFactor ?? 2,
     };
   }
 
-  public setProtocolVersion(version: string): void {
+  setProtocolVersion(version: string): void {
     this.protocolVersion = version;
+    this.delegate?.setProtocolVersion(version);
   }
 
-  public setReconnectPolicy(policy: {
+  setReconnectPolicy(policy: {
     enabled: boolean;
     maxAttempts: number;
     delayMs: number;
     backoffFactor: number;
   }): void {
-    this.reconnectOpts = {
-      enabled: policy.enabled,
-      maxAttempts: policy.maxAttempts,
-      delayMs: policy.delayMs,
-      backoffFactor: policy.backoffFactor,
-    };
+    if (this.started) throw new Error("Reconnect policy cannot change after transport start");
+    this.reconnectPolicy = policy;
+  }
+
+  get sessionId(): string | undefined {
+    return this.delegate instanceof StreamableHTTPClientTransport
+      ? this.delegate.sessionId
+      : undefined;
   }
 
   async start(): Promise<void> {
-    this.isClosing = false;
-    this.reconnectAttempts = 0;
-    await this.connectWithRetry();
-  }
-
-  private async connectWithRetry(): Promise<void> {
-    while (true) {
-      try {
-        await this.connect();
-        break; // Success
-      } catch (e: unknown) {
-        if (this.isClosing) return;
-
-        this.reconnectAttempts++;
-        if (
-          !this.reconnectOpts.enabled ||
-          this.reconnectAttempts >= this.reconnectOpts.maxAttempts
-        ) {
-          this.emit("error", e);
-          this.emit("close");
-          return;
-        }
-
-        // Exponential backoff
-        const delay = Math.min(
-          this.reconnectOpts.delayMs *
-            Math.pow(this.reconnectOpts.backoffFactor, this.reconnectAttempts - 1),
-          30000
-        );
-        await new Promise((r) => setTimeout(r, delay));
-      }
-    }
-  }
-
-  private async connect(): Promise<void> {
-    this.abortController = new AbortController();
-
-    const headers: Record<string, string> = {
-      ...this.headers,
-      Accept: "text/event-stream",
-      "MCP-Protocol-Version": this.protocolVersion,
-      "X-MCP-Session-ID": this.sessionId,
-    };
-
-    const response = await fetch(this.url + "/sse", {
-      headers,
-      signal: this.abortController.signal,
-    });
-
-    if (!response.ok || !response.body) {
-      throw new Error(`Failed to connect to SSE: ${response.statusText}`);
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    // Run background loop
-    (async () => {
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || ""; // Keep the incomplete line
-
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              const data = line.slice(6);
-              if (data) {
-                try {
-                  const message = JSON.parse(data) as JSONRPCMessage;
-                  this.emit("message", message);
-                } catch (_e) {
-                  this.emit("error", new Error(`Parse error in SSE: ${data}`));
-                }
-              }
-            }
-          }
-        }
-      } catch (err: unknown) {
-        if (!(err instanceof Error && err.name === "AbortError") && !this.isClosing) {
-          this.emit("error", err);
-          // If stream died, try to reconnect
-          if (this.reconnectOpts.enabled) {
-            this.connectWithRetry();
-            return;
-          }
-        }
-      }
-
-      if (!this.isClosing && this.reconnectOpts.enabled) {
-        this.connectWithRetry();
-      } else {
-        this.emit("close");
-      }
-    })();
-  }
-
-  async close(): Promise<void> {
-    this.isClosing = true;
-    if (this.abortController) {
-      this.abortController.abort();
-    }
-    this.emit("close");
+    if (this.started) return;
+    this.closed = false;
+    this.delegate = this.createDelegate();
+    this.bindDelegate(this.delegate);
+    this.delegate.setProtocolVersion(this.protocolVersion);
+    await this.delegate.start();
+    this.started = true;
   }
 
   async send(message: JSONRPCMessage): Promise<void> {
+    await this.requireDelegate().send(message as SDKJSONRPCMessage);
+  }
+
+  async close(): Promise<void> {
+    if (this.closed) return;
+    this.closed = true;
+    const delegate = this.delegate;
+    this.delegate = undefined;
+    this.started = false;
+    if (!delegate) {
+      this.emit("close");
+      return;
+    }
     try {
-      const res = await fetch(this.url + "/message", {
-        method: "POST",
-        headers: {
-          ...this.headers,
-          "Content-Type": "application/json",
-          "MCP-Protocol-Version": this.protocolVersion,
-          "X-MCP-Session-ID": this.sessionId,
-        },
-        body: JSON.stringify(message),
-      });
-      if (!res.ok) {
-        throw new Error(`Failed to send HTTP message: ${res.statusText}`);
+      if (
+        delegate instanceof StreamableHTTPClientTransport &&
+        (this.options.terminateSessionOnClose ?? true) &&
+        delegate.sessionId
+      ) {
+        await delegate.terminateSession();
       }
-    } catch (e: unknown) {
-      throw e;
+    } finally {
+      await delegate.close();
     }
   }
+
+  async resumeStream(lastEventId: string): Promise<void> {
+    await this.requireModernDelegate().resumeStream(lastEventId);
+  }
+
+  async terminateSession(): Promise<void> {
+    await this.requireModernDelegate().terminateSession();
+  }
+
+  private createDelegate(): SDKTransport {
+    const url = new URL(this.options.url);
+    const requestInit: RequestInit = this.options.headers ? { headers: this.options.headers } : {};
+    const fetchImpl = this.options.fetch;
+    if (this.options.compatibilityMode === "legacy-http-sse") {
+      const legacyUrl = new URL(this.options.legacySseUrl ?? "./sse", withTrailingSlash(url));
+      return new SSEClientTransport(legacyUrl, {
+        requestInit,
+        ...(fetchImpl ? { fetch: fetchImpl } : {}),
+      });
+    }
+    const opts: StreamableHTTPClientTransportOptions = {
+      requestInit,
+      ...(fetchImpl ? { fetch: fetchImpl } : {}),
+      reconnectionOptions: {
+        maxReconnectionDelay: 30_000,
+        initialReconnectionDelay: this.reconnectPolicy.delayMs,
+        reconnectionDelayGrowFactor: this.reconnectPolicy.backoffFactor,
+        maxRetries: this.reconnectPolicy.enabled ? this.reconnectPolicy.maxAttempts : 0,
+      },
+    };
+    return new StreamableHTTPClientTransport(url, opts);
+  }
+
+  private bindDelegate(delegate: SDKTransport): void {
+    delegate.onmessage = (message) => this.emit("message", message as JSONRPCMessage);
+    delegate.onerror = (error) => this.emit("error", error);
+    delegate.onclose = () => this.emit("close");
+  }
+
+  private requireDelegate(): SDKTransport {
+    if (!this.delegate) throw new Error("HTTP transport has not been started");
+    return this.delegate;
+  }
+
+  private requireModernDelegate(): StreamableHTTPClientTransport {
+    const delegate = this.requireDelegate();
+    if (!(delegate instanceof StreamableHTTPClientTransport)) {
+      throw new TypeError("Session operations are unavailable in legacy HTTP+SSE mode");
+    }
+    return delegate;
+  }
+}
+
+function withTrailingSlash(url: URL): URL {
+  const result = new URL(url);
+  if (!result.pathname.endsWith("/")) result.pathname += "/";
+  return result;
 }

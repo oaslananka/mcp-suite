@@ -48,23 +48,6 @@ function createInitializeResponse(id: JSONRPCRequest["id"]): JSONRPCResponse {
   };
 }
 
-function createBrokenStreamResponse(): Response {
-  const stream = new ReadableStream<Uint8Array>({
-    pull() {
-      throw new Error("stream broke");
-    },
-  });
-
-  return new Response(stream, {
-    status: 200,
-    headers: { "content-type": "text/event-stream" },
-  });
-}
-
-async function flushMicrotasks(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 0));
-}
-
 describe("shared coverage edges", () => {
   const originalFetch = globalThis.fetch;
 
@@ -165,27 +148,22 @@ describe("shared coverage edges", () => {
     await transport.close();
   });
 
-  it("emits stream and POST errors from HTTP transports without reconnecting", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(createBrokenStreamResponse())
-      .mockRejectedValueOnce(new Error("post down"));
-    globalThis.fetch = fetchMock;
-
+  it("surfaces POST failures and locks reconnect policy after start", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockRejectedValue(new Error("post down"));
     const transport = new StreamableHTTPTransport({
-      url: "http://localhost:4001",
+      url: "http://localhost:4001/mcp",
       reconnect: false,
+      fetch: fetchMock,
     });
-    const errors: string[] = [];
     const closes: number[] = [];
-    transport.on("error", (error) => errors.push((error as Error).message));
     transport.on("close", () => closes.push(Date.now()));
 
     await transport.start();
-    await flushMicrotasks();
-
-    expect(errors).toContain("stream broke");
-    expect(closes.length).toBeGreaterThan(0);
+    expect(() =>
+      transport.setReconnectPolicy({ enabled: false, maxAttempts: 1, delayMs: 1, backoffFactor: 1 })
+    ).toThrow("cannot change after transport start");
     await expect(transport.send({ jsonrpc: "2.0", method: "ping" })).rejects.toThrow("post down");
+    await transport.close();
+    expect(closes.length).toBeGreaterThan(0);
   });
 });
