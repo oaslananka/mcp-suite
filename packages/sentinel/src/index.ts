@@ -3,6 +3,7 @@ export * from "./proxy/RequestPipeline.js";
 export * from "./proxy/ResponsePipeline.js";
 export * from "./policy/PolicyEngine.js";
 export * from "./audit/AuditLog.js";
+export * from "./audit/AuditRedactor.js";
 export * from "./auth/KeyManager.js";
 export * from "./approval/ApprovalGate.js";
 export * from "./middleware/PiiScrubber.js";
