@@ -155,7 +155,7 @@ export class StreamableHTTPTransport extends EventEmitter implements Transport {
   private requireModernDelegate(): StreamableHTTPClientTransport {
     const delegate = this.requireDelegate();
     if (!(delegate instanceof StreamableHTTPClientTransport)) {
-      throw new Error("Session operations are unavailable in legacy HTTP+SSE mode");
+      throw new TypeError("Session operations are unavailable in legacy HTTP+SSE mode");
     }
     return delegate;
   }
