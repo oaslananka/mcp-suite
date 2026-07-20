@@ -93,4 +93,4 @@
 
 - [x] Document clean bootstrap and stale ABI recovery.
 - [x] Run format, lint, typecheck, build, coverage, security, knip, registry/Smithery validation, and release dry-run under the canonical runtime.
-- [ ] Push the branch and open a PR linked to issue #34 with validation evidence.
+- [x] Push the branch and open a PR linked to issue #34 with validation evidence.
