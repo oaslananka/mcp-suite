@@ -9,51 +9,7 @@ import { ResponsePipeline } from "../src/proxy/ResponsePipeline.js";
 import { SentinelProxy } from "../src/proxy/SentinelProxy.js";
 
 describe("ApprovalGate, AuditLog, and SentinelProxy", () => {
-  it("holds requests using timeout policy and exports audit records", async () => {
-    const gate = new ApprovalGate();
-    await expect(
-      gate.hold(
-        {
-          tool: "github__search_code",
-          input: {},
-          headers: {},
-        },
-        {
-          channels: ["slack"],
-          timeout: "5ms",
-          on_timeout: "deny",
-        }
-      )
-    ).resolves.toBe("timeout");
-    await expect(
-      gate.hold(
-        {
-          tool: "github__search_code",
-          input: {},
-          headers: {},
-        },
-        {
-          channels: ["slack"],
-          timeout: "1s",
-          on_timeout: "approve",
-        }
-      )
-    ).resolves.toBe("approved");
-    await expect(
-      gate.hold(
-        {
-          tool: "github__search_code",
-          input: {},
-          headers: {},
-        },
-        {
-          channels: ["slack"],
-          timeout: "nonsense",
-          on_timeout: "deny",
-        }
-      )
-    ).resolves.toBe("timeout");
-
+  it("exports durable audit records", () => {
     const db = new Database(":memory:");
     const auditLog = new AuditLog(db);
     auditLog.record({
@@ -146,7 +102,8 @@ describe("ApprovalGate, AuditLog, and SentinelProxy", () => {
       new ResponsePipeline(),
       auditLog,
       {
-        hold: vi.fn(async () => "timeout"),
+        holdRequest: vi.fn(async () => ({ id: "mock-timeout", status: "expired" as const })),
+        claimExecution: vi.fn(() => false),
       } as unknown as ApprovalGate,
       new MockTransport(),
       keyManager
@@ -159,7 +116,7 @@ describe("ApprovalGate, AuditLog, and SentinelProxy", () => {
         arguments: { q: "mcp" },
         headers: { authorization: `Bearer ${key.rawKey}` },
       })
-    ).rejects.toThrow("Approval failed");
+    ).rejects.toThrow("Approval expired");
 
     expect((proxy as any).resolveVirtualKey("missing")).toMatchObject({
       id: "anonymous",

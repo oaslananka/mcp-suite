@@ -7,5 +7,6 @@ export * from "./audit/AuditLog.js";
 export * from "./audit/AuditRedactor.js";
 export * from "./auth/KeyManager.js";
 export * from "./approval/ApprovalGate.js";
+export * from "./approval/ApprovalStore.js";
 export * from "./middleware/PiiScrubber.js";
 export * from "./pii/PIIDetector.js";
