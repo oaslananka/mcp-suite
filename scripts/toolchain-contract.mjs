@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const ACTIVE_CONFIG_ROOTS = [".github", ".azure", ".devcontainer"];
@@ -45,7 +45,7 @@ export function assertExactVersion(actual, expected, label) {
 
   if (normalizedActual !== normalizedExpected) {
     throw new Error(
-      `${label} version mismatch: expected ${normalizedExpected}, received ${normalizedActual}`,
+      `${label} version mismatch: expected ${normalizedExpected}, received ${normalizedActual}`
     );
   }
 }
@@ -55,12 +55,28 @@ function findForbiddenRuntimeSelections(files) {
     /\bnode-version:\s*["']?(?:20|22)(?:\.[0-9x*]+)*/i,
     /\bNODE_VERSION:\s*["']?(?:20|22)(?:\.[0-9x*]+)*/i,
     /typescript-node:(?:[^"'\s]*[-:])?(?:20|22)(?=[-.:"'\s]|$)/i,
+    /\bFROM\s+node:(?:20|22)(?=[-.@:\s]|$)/i,
   ];
 
   return [...files.entries()]
     .filter(([, content]) => forbiddenPatterns.some((pattern) => pattern.test(content)))
     .map(([path]) => path)
     .sort();
+}
+
+function findNoncanonicalPnpmSelections(files, expectedVersion) {
+  const mismatches = [];
+  const pattern = /\bcorepack\s+prepare\s+["']?pnpm@(\d+\.\d+\.\d+)/gi;
+
+  for (const [path, content] of files.entries()) {
+    for (const match of content.matchAll(pattern)) {
+      if (match[1] !== expectedVersion) {
+        mismatches.push(`${path} uses pnpm ${match[1]}; expected ${expectedVersion}`);
+      }
+    }
+  }
+
+  return mismatches.sort();
 }
 
 export function validateRepositorySnapshot(snapshot, contract) {
@@ -71,25 +87,30 @@ export function validateRepositorySnapshot(snapshot, contract) {
 
   if (snapshot.packageJson.packageManager !== expectedPackageManager) {
     errors.push(
-      `package.json packageManager must be ${expectedPackageManager}, received ${snapshot.packageJson.packageManager ?? "missing"}`,
+      `package.json packageManager must be ${expectedPackageManager}, received ${snapshot.packageJson.packageManager ?? "missing"}`
     );
   }
   if (snapshot.packageJson.engines?.node !== expectedNodeEngine) {
     errors.push(
-      `package.json engines.node must be ${expectedNodeEngine}, received ${snapshot.packageJson.engines?.node ?? "missing"}`,
+      `package.json engines.node must be ${expectedNodeEngine}, received ${snapshot.packageJson.engines?.node ?? "missing"}`
     );
   }
   if (snapshot.packageJson.engines?.pnpm !== expectedPnpmEngine) {
     errors.push(
-      `package.json engines.pnpm must be ${expectedPnpmEngine}, received ${snapshot.packageJson.engines?.pnpm ?? "missing"}`,
+      `package.json engines.pnpm must be ${expectedPnpmEngine}, received ${snapshot.packageJson.engines?.pnpm ?? "missing"}`
     );
   }
 
   const forbiddenSelections = findForbiddenRuntimeSelections(snapshot.files);
   if (forbiddenSelections.length > 0) {
     errors.push(
-      `Node 20 or Node 22 selection found in active configuration: ${forbiddenSelections.join(", ")}`,
+      `Node 20 or Node 22 selection found in active configuration: ${forbiddenSelections.join(", ")}`
     );
+  }
+
+  const pnpmMismatches = findNoncanonicalPnpmSelections(snapshot.files, contract.pnpm);
+  if (pnpmMismatches.length > 0) {
+    errors.push(`Noncanonical pnpm selection: ${pnpmMismatches.join(", ")}`);
   }
 
   if (errors.length > 0) {
@@ -115,7 +136,26 @@ function collectConfigFiles(rootDir) {
   }
 
   for (const configRoot of ACTIVE_CONFIG_ROOTS) {
-    visit(join(rootDir, configRoot));
+    const absoluteRoot = join(rootDir, configRoot);
+    if (existsSync(absoluteRoot)) visit(absoluteRoot);
+  }
+
+  for (const composeFile of ["docker-compose.yml", "docker-compose.prod.yml"]) {
+    const absolutePath = join(rootDir, composeFile);
+    if (existsSync(absolutePath)) {
+      files.set(composeFile, readFileSync(absolutePath, "utf8"));
+    }
+  }
+
+  const packagesRoot = join(rootDir, "packages");
+  if (existsSync(packagesRoot)) {
+    for (const entry of readdirSync(packagesRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const dockerfile = join(packagesRoot, entry.name, "Dockerfile");
+      if (existsSync(dockerfile)) {
+        files.set(relative(rootDir, dockerfile), readFileSync(dockerfile, "utf8"));
+      }
+    }
   }
 
   return files;
@@ -132,6 +172,6 @@ export function validateRepository(rootDir, contract = readRepositoryContract(ro
       packageJson,
       files: collectConfigFiles(rootDir),
     },
-    contract,
+    contract
   );
 }

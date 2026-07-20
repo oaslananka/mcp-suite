@@ -1,12 +1,12 @@
 {
   "name": "MCP Suite Dev",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:24",
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  "onCreateCommand": "npm install -g pnpm@10 turbo && pnpm install",
-  "postStartCommand": "pnpm build",
+  "onCreateCommand": "bash scripts/bootstrap-devcontainer.sh",
+  "postStartCommand": "pnpm run toolchain:check && pnpm build",
   "forwardPorts": [4001, 4002, 4003, 4004, 4006],
   "customizations": {
     "vscode": {

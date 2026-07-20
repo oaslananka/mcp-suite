@@ -1,0 +1,56 @@
+name: Set up repository toolchain
+description: Read .tool-versions, configure pnpm and Node.js, and verify the runtime contract
+
+inputs:
+  registry-url:
+    description: Optional npm registry URL passed to actions/setup-node
+    required: false
+    default: ""
+
+outputs:
+  node-version:
+    description: Canonical Node.js version
+    value: ${{ steps.versions.outputs.node-version }}
+  pnpm-version:
+    description: Canonical pnpm version
+    value: ${{ steps.versions.outputs.pnpm-version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Read canonical versions
+      id: versions
+      shell: bash
+      run: |
+        set -euo pipefail
+        node_version="$(awk '$1 == "node" { print $2 }' .tool-versions)"
+        pnpm_version="$(awk '$1 == "pnpm" { print $2 }' .tool-versions)"
+        test -n "${node_version}"
+        test -n "${pnpm_version}"
+        echo "node-version=${node_version}" >> "${GITHUB_OUTPUT}"
+        echo "pnpm-version=${pnpm_version}" >> "${GITHUB_OUTPUT}"
+
+    - name: Set up pnpm
+      uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093
+      with:
+        version: ${{ steps.versions.outputs.pnpm-version }}
+        run_install: false
+
+    - name: Set up Node
+      if: ${{ inputs.registry-url == '' }}
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+      with:
+        node-version: ${{ steps.versions.outputs.node-version }}
+        cache: pnpm
+
+    - name: Set up Node with npm registry
+      if: ${{ inputs.registry-url != '' }}
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+      with:
+        node-version: ${{ steps.versions.outputs.node-version }}
+        cache: pnpm
+        registry-url: ${{ inputs.registry-url }}
+
+    - name: Verify runtime contract
+      shell: bash
+      run: node scripts/verify-toolchain.mjs --runtime

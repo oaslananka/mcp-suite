@@ -43,15 +43,13 @@ try {
     assertExactVersion(process.version, contract.node, "Node.js");
     assertExactVersion(pnpmVersion, contract.pnpm, "pnpm");
     console.log(
-      `Toolchain runtime OK: node=${process.version.replace(/^v/, "")} pnpm=${pnpmVersion} abi=${process.versions.modules}`,
+      `Toolchain runtime OK: node=${process.version.replace(/^v/, "")} pnpm=${pnpmVersion} abi=${process.versions.modules}`
     );
   }
 
   if (mode === "--all" || mode === "--repository") {
     validateRepository(rootDir, contract);
-    console.log(
-      `Toolchain repository contract OK: node=${contract.node} pnpm=${contract.pnpm}`,
-    );
+    console.log(`Toolchain repository contract OK: node=${contract.node} pnpm=${contract.pnpm}`);
   }
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
