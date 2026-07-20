@@ -23,6 +23,12 @@ Workflow HTTP nodes and registry health checks use a public-URL policy that:
 - Checks DNS results for private or local addresses when resolution is enabled.
 - Enforces redirect, timeout, request-size, and response-size bounds for Forge workflow HTTP calls.
 
+## Remote Schema and Workflow Fetching
+
+Bridge remote OpenAPI loading and Forge workflow HTTP nodes share one outbound request policy. The policy requires HTTPS by default, rejects embedded URL credentials and special-use IPv4/IPv6 space, validates every DNS answer, pins a reviewed address into the connection, and repeats validation for every redirect. Connection plus body-read timeouts, redirect limits, request/response byte limits, content-type checks, and cross-origin credential stripping are enforced before data reaches parsers or workflow outputs. Error messages and structured logs do not include target URLs.
+
+Bridge supports private schema registries only through an exact-host opt-in. Use `--trusted-private-host <host...>` or `BRIDGE_TRUSTED_PRIVATE_HOSTS`; wildcard domains, URL strings, paths, credentials, and host-plus-port values are rejected. This exception permits private DNS results only for the named host. It does not disable HTTPS, address pinning, redirect validation, timeouts, or response limits. Prefer a dedicated internal hostname with restricted DNS and network ACLs rather than trusting a broad shared endpoint.
+
 ## Desktop Boundary
 
 MCP Lab keeps `contextIsolation: true`, `nodeIntegration: false`, and `sandbox: true`. It denies new windows, denies permission requests, prevents navigation away from the expected app origin, and uses a stdio command allowlist instead of shell command strings.

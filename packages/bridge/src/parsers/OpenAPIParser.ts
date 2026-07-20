@@ -1,5 +1,30 @@
 import { readFile } from "node:fs/promises";
+import { safeFetchText, type SafeFetchResult } from "@oaslananka/shared";
 import yaml from "js-yaml";
+
+export const OPENAPI_REMOTE_CONTENT_TYPES = [
+  "application/json",
+  "application/yaml",
+  "application/x-yaml",
+  "text/yaml",
+  "text/x-yaml",
+  "text/plain",
+  "application/vnd.oai.openapi+json",
+  "application/vnd.oai.openapi+yaml",
+] as const;
+
+export interface OpenAPIRemoteOptions {
+  maxRedirects?: number;
+  maxResponseBytes?: number;
+  timeoutMs?: number;
+  trustedPrivateHosts?: string[];
+}
+
+export interface OpenAPIParserOptions {
+  remote?: OpenAPIRemoteOptions;
+}
+
+export type OpenAPIRemoteLoader = typeof safeFetchText;
 
 export interface ParsedEndpoint {
   method: string;
@@ -18,18 +43,31 @@ export interface ParsedAPI {
 }
 
 export class OpenAPIParser {
+  constructor(
+    private readonly options: OpenAPIParserOptions = {},
+    private readonly remoteLoader: OpenAPIRemoteLoader = safeFetchText
+  ) {}
+
   async parseFile(filePath: string): Promise<ParsedAPI> {
     const raw = await readFile(filePath, "utf8");
     return this.parseYAML(raw);
   }
 
   async parseURL(url: string): Promise<ParsedAPI> {
-    const response = await fetch(url);
+    const remote = this.options.remote ?? {};
+    const response: SafeFetchResult = await this.remoteLoader(url, {
+      label: "Remote OpenAPI schema policy",
+      allowedContentTypes: [...OPENAPI_REMOTE_CONTENT_TYPES],
+      maxRedirects: remote.maxRedirects ?? 3,
+      maxResponseBytes: remote.maxResponseBytes ?? 1_000_000,
+      timeoutMs: remote.timeoutMs ?? 10_000,
+      ...(remote.trustedPrivateHosts ? { trustedPrivateHosts: remote.trustedPrivateHosts } : {}),
+    });
     if (!response.ok) {
-      throw new Error(`Failed to fetch OpenAPI document from ${url}`);
+      throw new Error(`Remote OpenAPI schema request failed with HTTP ${response.status}`);
     }
 
-    return this.parseYAML(await response.text());
+    return this.parseYAML(response.bodyText);
   }
 
   async parseYAML(content: string): Promise<ParsedAPI> {
