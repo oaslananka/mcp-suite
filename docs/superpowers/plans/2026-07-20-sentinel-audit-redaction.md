@@ -58,4 +58,4 @@
 
 - [x] Run Sentinel focused tests, root format/lint/typecheck/build/coverage/security/knip, metadata validation, and release dry-run under the canonical toolchain.
 - [x] Inspect raw SQLite rows and exported JSON/CSV for every fixture secret.
-- [ ] Push the branch and open a PR linked to issue #36 with validation evidence.
+- [x] Push the branch and open a PR linked to issue #36 with validation evidence.
