@@ -20,24 +20,21 @@ COPY packages/shared ./packages/shared
 COPY packages/composer ./packages/composer
 
 RUN pnpm turbo run build --filter=@oaslananka/composer
+RUN pnpm --ignore-scripts --filter @oaslananka/composer deploy --legacy --prod /deploy/composer
 
 FROM node@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS runtime
 
 LABEL org.opencontainers.image.source="https://github.com/oaslananka/mcp-suite"
 
-RUN apk add --no-cache dumb-init procps
+RUN apk add --no-cache dumb-init procps && \
+    rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack && \
+    rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/pnpm /usr/local/bin/pnpx
 WORKDIR /app
 
 RUN addgroup -g 1001 -S mcp && adduser -S -u 1001 -G mcp mcp
 RUN mkdir -p /app/data && chown -R mcp:mcp /app/data
 
-COPY --from=builder --chown=mcp:mcp /workspace/node_modules ./node_modules
-COPY --from=builder --chown=mcp:mcp /workspace/packages/shared/package.json ./packages/shared/package.json
-COPY --from=builder --chown=mcp:mcp /workspace/packages/shared/dist ./packages/shared/dist
-COPY --from=builder --chown=mcp:mcp /workspace/packages/shared/node_modules ./packages/shared/node_modules
-COPY --from=builder --chown=mcp:mcp /workspace/packages/composer/package.json ./packages/composer/package.json
-COPY --from=builder --chown=mcp:mcp /workspace/packages/composer/dist ./packages/composer/dist
-COPY --from=builder --chown=mcp:mcp /workspace/packages/composer/node_modules ./packages/composer/node_modules
+COPY --from=builder --chown=mcp:mcp /deploy/composer ./packages/composer
 
 USER mcp
 
