@@ -1,0 +1,81 @@
+codecov:
+  require_ci_to_pass: true
+  notify:
+    wait_for_ci: true
+
+coverage:
+  precision: 2
+  round: down
+  range: 70..90
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        base: auto
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+        base: auto
+
+comment:
+  layout: "header, diff, components, files"
+  behavior: default
+  require_changes: true
+  require_base: false
+  require_head: true
+  hide_project_coverage: false
+
+github_checks:
+  annotations: true
+
+bundle_analysis:
+  warning_threshold: "5%"
+  status: informational
+
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+  individual_components:
+    - component_id: shared
+      name: Shared
+      paths:
+        - packages/shared/**
+    - component_id: forge
+      name: Forge
+      paths:
+        - packages/forge/**
+    - component_id: sentinel
+      name: Sentinel
+      paths:
+        - packages/sentinel/**
+    - component_id: atlas
+      name: Atlas
+      paths:
+        - packages/atlas/**
+    - component_id: composer
+      name: Composer
+      paths:
+        - packages/composer/**
+    - component_id: bridge
+      name: Bridge
+      paths:
+        - packages/bridge/**
+    - component_id: observatory
+      name: Observatory
+      paths:
+        - packages/observatory/**
+    - component_id: lab
+      name: Lab
+      paths:
+        - apps/lab/**
+
+ignore:
+  - "**/dist/**"
+  - "**/node_modules/**"
+  - "docs/**"
+  - "examples/**"
+  - "scripts/**"

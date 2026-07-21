@@ -17,6 +17,9 @@ jobs:
   quality:
     name: Format, Lint, Typecheck, Test, Build
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
     timeout-minutes: 45
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     steps:
@@ -70,6 +73,35 @@ jobs:
           set -euo pipefail
           pnpm run test:coverage
 
+      - name: Discover Codecov reports
+        id: codecov-reports
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: node scripts/codecov-reports.mjs
+
+      - name: Upload coverage to Codecov
+        if: ${{ !cancelled() && steps.codecov-reports.outputs.coverage_files != '' }}
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          use_oidc: true
+          files: ${{ steps.codecov-reports.outputs.coverage_files }}
+          disable_search: true
+          disable_telem: true
+          fail_ci_if_error: true
+          name: mcp-suite-coverage
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() && steps.codecov-reports.outputs.test_result_files != '' }}
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          use_oidc: true
+          report_type: test_results
+          files: ${{ steps.codecov-reports.outputs.test_result_files }}
+          disable_search: true
+          disable_telem: true
+          fail_ci_if_error: true
+          name: mcp-suite-test-results
+
       - name: Security
         shell: bash
         run: |
@@ -84,6 +116,8 @@ jobs:
 
       - name: Build
         shell: bash
+        env:
+          CODECOV_BUNDLE_ANALYSIS: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
           set -euo pipefail
           pnpm run build
