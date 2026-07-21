@@ -9,6 +9,7 @@
 > The missing infrastructure layer for Model Context Protocol ecosystems.
 
 [![CI](https://github.com/oaslananka/mcp-suite/actions/workflows/ci.yml/badge.svg)](https://github.com/oaslananka/mcp-suite/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/oaslananka/mcp-suite/graph/badge.svg)](https://codecov.io/gh/oaslananka/mcp-suite)
 [![npm scope](https://img.shields.io/badge/npm-@oaslananka-EA580C)](https://www.npmjs.com/search?q=%40oaslananka%20mcp)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 [![MCP Spec 2025-11-25](https://img.shields.io/badge/MCP%20Spec-2025--11--25-16A34A)](https://modelcontextprotocol.io)

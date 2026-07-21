@@ -155,7 +155,7 @@ Run Atlas and Observatory UI builds without the environment variable and confirm
 
 Explain how reports are generated, uploaded after failures, authenticated, and separated from SonarQube Cloud responsibilities.
 
-- [ ] **Step 2: Add the Codecov badge**
+- [x] **Step 2: Add the Codecov badge**
 
 Add a repository coverage badge only after the Codecov project is configured and the first upload succeeds.
 
