@@ -1,7 +1,6 @@
 import { existsSync } from "node:fs";
 import { createServer } from "node:net";
 import path from "node:path";
-import Database from "better-sqlite3";
 
 const externalChecks = [
   process.env.FORGE_HEALTH_URL ? { name: "forge", url: process.env.FORGE_HEALTH_URL } : null,
@@ -26,10 +25,12 @@ async function runSelfContainedSmoke() {
   requireBuiltArtifact("packages/observatory/dist/index.js");
 
   const [
+    { default: Database },
     { ApiServer, ForgeEngine, RunStore },
     { RegistryServer, ServerStore },
     { DashboardServer, SQLiteStore },
   ] = await Promise.all([
+    import("better-sqlite3"),
     import("../packages/forge/dist/index.js"),
     import("../packages/atlas/dist/index.js"),
     import("../packages/observatory/dist/index.js"),
