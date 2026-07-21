@@ -82,3 +82,7 @@ Atlas health records must identify the exact MCP transport. Generic homepage che
 Stdio checks require an absolute executable path that is present in the operator allowlist. Atlas passes an argument array directly with `shell: false`, bounds stdout, applies a deadline, and supplies only explicitly mapped environment variables. A process starting successfully is not enough: the probe must complete MCP initialization and any advertised capability verification.
 
 Health failures expose fixed categories and sanitized messages rather than raw URLs, credentials, command output, or provider errors. Registry quality scores reward only successful MCP readiness. Liveness without a valid handshake is displayed as degraded, not healthy.
+
+### MCP SDK Hono adapter override
+
+`@modelcontextprotocol/sdk` v1.29.0 currently declares the vulnerable v1 range of `@hono/node-server`. The workspace scopes a pnpm override to that SDK dependency only and pins `@hono/node-server` 2.0.5, which contains the encoded-backslash static-path fix. Keep the override until a production v1 MCP SDK release adopts the patched adapter; do not remove it solely because the v2 SDK is available, since v1 remains the production compatibility line used by this repository.

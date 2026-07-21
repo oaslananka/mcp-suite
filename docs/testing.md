@@ -44,3 +44,29 @@ Security-sensitive tests cover:
 - Atlas and Observatory static UI containment using `path.relative()`.
 - Atlas submission auth/schema/body limits and health-check SSRF defenses.
 - MCP Lab stdio command allowlist and Windows spawn behavior without shell command lines.
+
+## UI quality gates
+
+Atlas, Observatory, and the Lab renderer are exercised from their production builds with Playwright Chromium. The browser suite uses deterministic mocked API and preload boundaries so failures represent UI contracts rather than external network availability.
+
+```bash
+pnpm run build
+pnpm run test:ui
+# Or run one project at a time:
+pnpm run test:e2e
+pnpm run test:a11y
+pnpm run test:perf
+pnpm run size
+```
+
+`test:ui` runs all three Playwright projects and writes a combined JUnit report in CI so Codecov Test Analytics can surface failed browser tests. `test:e2e` covers Atlas search/detail/submission, Observatory dashboard/traces/anomalies, and Lab connection/tool-contract flows. `test:a11y` runs axe WCAG 2.0/2.1 A and AA rules on every home surface. `test:perf` enforces local production-navigation smoke thresholds; it is not a replacement for field telemetry or Lighthouse lab scoring.
+
+`pnpm run size` measures raw and independently gzipped production files for all publishable package `dist/` trees plus the three UI surfaces. Budgets are calibrated from the current production baseline with roughly 15–20% headroom. Budget changes require an intentional review with the measured before/after output; they must not be raised merely to make CI green.
+
+Install the matching browser once on a new developer machine:
+
+```bash
+pnpm exec playwright install chromium
+```
+
+CI installs Chromium and its Linux system dependencies before running the browser gates. The commands themselves are cross-platform and can be run unchanged from PowerShell after the workspace build.

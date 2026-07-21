@@ -1,1 +1,7 @@
 .codex-checkpoints/
+coverage/
+**/coverage/
+dist/
+**/dist/
+test-results/
+playwright-report/

@@ -26,6 +26,7 @@ test("collectCodecovReports returns only sorted LCOV and JUnit reports", async (
     createFixture(root, "coverage/integration/lcov.info", validLcov),
     createFixture(root, "apps/lab/test-results/junit.xml", validJunit),
     createFixture(root, "packages/shared/test-results/junit.xml", validJunit),
+    createFixture(root, "test-results/playwright/junit.xml", validJunit),
     createFixture(root, "packages/empty/coverage/lcov.info", ""),
     createFixture(root, "packages/malformed/coverage/lcov.info", "not-lcov\n"),
     createFixture(root, "packages/empty/test-results/junit.xml", ""),
@@ -42,7 +43,11 @@ test("collectCodecovReports returns only sorted LCOV and JUnit reports", async (
       "packages/bridge/coverage/lcov.info",
       "packages/shared/coverage/lcov.info",
     ],
-    testResultFiles: ["apps/lab/test-results/junit.xml", "packages/shared/test-results/junit.xml"],
+    testResultFiles: [
+      "apps/lab/test-results/junit.xml",
+      "packages/shared/test-results/junit.xml",
+      "test-results/playwright/junit.xml",
+    ],
   });
 });
 
