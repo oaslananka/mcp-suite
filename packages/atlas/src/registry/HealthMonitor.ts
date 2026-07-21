@@ -133,7 +133,9 @@ export class HealthMonitor {
   }
 
   getUptime(serverId: string, days: number): number {
-    const windowStart = new Date(Date.now() - positiveInteger(days, "uptime days") * 86_400_000);
+    const windowStart = new Date(
+      this.now().getTime() - positiveInteger(days, "uptime days") * 86_400_000
+    );
     const rows = this.store.db
       .prepare(
         `SELECT readiness FROM health_checks

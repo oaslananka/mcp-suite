@@ -1,7 +1,9 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { PassThrough } from "node:stream";
 import Database from "better-sqlite3";
 import { SafeFetchError, type SafeFetchResult } from "@oaslananka/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -79,6 +81,47 @@ function createStdioScript(source: string): string {
   const script = path.join(directory, "server.mjs");
   writeFileSync(script, source, "utf8");
   return script;
+}
+
+type MockStdioChild = ChildProcessWithoutNullStreams & {
+  stdin: PassThrough;
+  stdout: PassThrough;
+  stderr: PassThrough;
+};
+
+type MockStdioAction = (child: MockStdioChild) => void;
+
+function createMockStdioChild(action?: MockStdioAction): MockStdioChild {
+  const child = new EventEmitter() as MockStdioChild;
+  const stdin = new PassThrough();
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
+  let exited = false;
+
+  Object.assign(child, {
+    stdin,
+    stdout,
+    stderr,
+    pid: 1,
+    connected: false,
+    killed: false,
+    exitCode: null,
+    signalCode: null,
+    spawnargs: [],
+    spawnfile: process.execPath,
+    kill(signal = "SIGTERM") {
+      if (!exited) {
+        exited = true;
+        queueMicrotask(() => child.emit("exit", null, signal));
+      }
+      return true;
+    },
+  });
+
+  if (action) {
+    stdin.once("data", () => queueMicrotask(() => action(child)));
+  }
+  return child;
 }
 
 afterEach(() => {
@@ -263,44 +306,47 @@ describe("HealthMonitor MCP readiness", () => {
   it.each([
     {
       name: "malformed output",
-      source: `process.stdin.once("data", () => process.stdout.write("not-json\\n"));`,
+      action: (child: MockStdioChild) => child.stdout.write("not-json\n"),
       category: "malformed_response",
     },
     {
       name: "failed command",
-      source: `process.stdin.once("data", () => process.exit(2));`,
+      action: (child: MockStdioChild) => child.emit("exit", 2, null),
       category: "command_failed",
     },
     {
       name: "stderr output limit",
-      source: `process.stdin.once("data", () => process.stderr.write("x".repeat(2000)));`,
+      action: (child: MockStdioChild) => child.stderr.write("x".repeat(2_000)),
       category: "output_limit",
       maxOutputBytes: 128,
     },
     {
       name: "timeout",
-      source: `process.stdin.resume();`,
+      action: undefined,
       category: "timeout",
     },
     {
       name: "output limit",
-      source: `process.stdin.once("data", () => process.stdout.write("x".repeat(2000) + "\\n"));`,
+      action: (child: MockStdioChild) => child.stdout.write(`${"x".repeat(2_000)}\n`),
       category: "output_limit",
       maxOutputBytes: 128,
     },
-  ])("classifies bounded stdio failures: $name", async ({ source, category, maxOutputBytes }) => {
-    const script = createStdioScript(source);
+  ])("classifies bounded stdio failures: $name", async ({ action, category, maxOutputBytes }) => {
     const store = createStore();
     const server = addServer(store, {
       transport: "stdio",
       command: process.execPath,
-      args: [script],
-      timeoutMs: category === "timeout" ? 150 : 1_000,
+      args: [],
+      timeoutMs: 50,
       ...(maxOutputBytes ? { maxOutputBytes } : {}),
     });
+    const child = createMockStdioChild(action);
+    const spawnProcess = vi.fn(() => child);
     const result = await new HealthMonitor(store, {
       allowedStdioCommands: [process.execPath],
+      spawnProcess: spawnProcess as never,
     }).checkServer(server.id);
+    expect(spawnProcess).toHaveBeenCalledOnce();
     expect(result).toMatchObject({ readiness: "not_ready", failureCategory: category });
   });
 

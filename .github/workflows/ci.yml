@@ -74,33 +74,21 @@ jobs:
           pnpm run test:coverage
 
       - name: Discover Codecov reports
-        id: codecov-reports
+        id: codecov-coverage-reports
         if: ${{ !cancelled() }}
         shell: bash
         run: node scripts/codecov-reports.mjs
 
       - name: Upload coverage to Codecov
-        if: ${{ !cancelled() && steps.codecov-reports.outputs.coverage_files != '' }}
+        if: ${{ !cancelled() && steps.codecov-coverage-reports.outputs.coverage_files != '' }}
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           use_oidc: true
-          files: ${{ steps.codecov-reports.outputs.coverage_files }}
+          files: ${{ steps.codecov-coverage-reports.outputs.coverage_files }}
           disable_search: true
           disable_telem: true
           fail_ci_if_error: true
           name: mcp-suite-coverage
-
-      - name: Upload test results to Codecov
-        if: ${{ !cancelled() && steps.codecov-reports.outputs.test_result_files != '' }}
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
-        with:
-          use_oidc: true
-          report_type: test_results
-          files: ${{ steps.codecov-reports.outputs.test_result_files }}
-          disable_search: true
-          disable_telem: true
-          fail_ci_if_error: true
-          name: mcp-suite-test-results
 
       - name: Security
         shell: bash
@@ -121,6 +109,42 @@ jobs:
         run: |
           set -euo pipefail
           pnpm run build
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec playwright install --with-deps chromium
+
+      - name: UI end-to-end, accessibility, and performance gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run test:ui
+
+      - name: Discover Codecov test results
+        id: codecov-test-results
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: node scripts/codecov-reports.mjs
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() && steps.codecov-test-results.outputs.test_result_files != '' }}
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          use_oidc: true
+          report_type: test_results
+          files: ${{ steps.codecov-test-results.outputs.test_result_files }}
+          disable_search: true
+          disable_telem: true
+          fail_ci_if_error: true
+          name: mcp-suite-test-results
+
+      - name: Package and bundle size budgets
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run size
 
       - name: Production smoke
         shell: bash

@@ -31,10 +31,9 @@ Protected `main` required check-run names:
 | Analyze JavaScript and TypeScript    | CodeQL / analyze                              |
 | Review Thread Gate                   | Review Thread Gate / review-thread            |
 | actionlint, zizmor, gitleaks         | Workflow Lint And Secret Scan / workflow-lint |
-| codecov/project                      | Codecov project coverage                      |
 | codecov/patch                        | Codecov changed-line coverage                 |
 
-Container validation remains visible on every pull request but is not duplicated as six separate required ruleset entries. Each matrix entry now includes a blocking Trivy gate for fixable `HIGH`/`CRITICAL` vulnerabilities and, for trusted pull requests, a categorized SARIF upload that retains unfixed findings in GitHub Code Scanning. Release preflight runs inside the CI quality job, so it is covered by `Format, Lint, Typecheck, Test, Build`.
+Container validation remains visible on every pull request but is not duplicated as six separate required ruleset entries. Each matrix entry now includes a blocking Trivy gate for fixable `HIGH`/`CRITICAL` vulnerabilities and, for trusted pull requests, a categorized SARIF upload that retains unfixed findings in GitHub Code Scanning. Release preflight runs inside the CI quality job, so it is covered by `Format, Lint, Typecheck, Test, Build`. UI E2E, accessibility, performance-smoke, and package/bundle-size gates run in the same required quality job after production builds are created.
 
 The `Containers` workflow is the only authority allowed to publish GHCR images. It first publishes a full-commit SHA tag, verifies the Cosign OIDC identity, pushes and verifies a GitHub provenance attestation, confirms both supported architectures, and runs production Compose against the published images with `--no-build`. The `main`, `latest`, and component version aliases are created only after these checks pass.
 
