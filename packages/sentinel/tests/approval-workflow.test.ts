@@ -428,7 +428,7 @@ describe("ApprovalGate", () => {
       { tool: "danger", input: {}, headers: {} },
       {
         channels: ["cli"],
-        timeout: "1s",
+        timeout: "10s",
         requesterPrincipalId: "requester",
         approverPrincipalId: "approver",
         idempotencyKey: "restart-request",

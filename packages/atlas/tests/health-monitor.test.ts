@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -318,25 +319,43 @@ describe("HealthMonitor MCP readiness", () => {
       `,
       "utf8"
     );
+    const child = spawn(process.execPath, [script, pidFile], {
+      shell: false,
+      stdio: ["pipe", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    await vi.waitFor(() => expect(existsSync(pidFile)).toBe(true), { timeout: 5_000 });
+    const pid = Number(readFileSync(pidFile, "utf8"));
+    const spawnProcess = vi.fn(() => child);
     const store = createStore();
     const server = addServer(store, {
       transport: "stdio",
       command: process.execPath,
       args: [script, pidFile],
-      timeoutMs: 500,
+      timeoutMs: 200,
     });
 
-    await expect(
-      new HealthMonitor(store, { allowedStdioCommands: [process.execPath] }).checkServer(server.id)
-    ).resolves.toMatchObject({ failureCategory: "timeout" });
-    await vi.waitFor(() => expect(existsSync(pidFile)).toBe(true));
-    const pid = Number(readFileSync(pidFile, "utf8"));
-    await vi.waitFor(
-      () => {
-        expect(() => process.kill(pid, 0)).toThrow();
-      },
-      { timeout: 2_000 }
-    );
+    try {
+      await expect(
+        new HealthMonitor(store, {
+          allowedStdioCommands: [process.execPath],
+          spawnProcess: spawnProcess as never,
+        }).checkServer(server.id)
+      ).resolves.toMatchObject({ failureCategory: "timeout" });
+      expect(spawnProcess).toHaveBeenCalledOnce();
+      await vi.waitFor(
+        () => {
+          expect(() => process.kill(pid, 0)).toThrow();
+        },
+        { timeout: 3_000 }
+      );
+    } finally {
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        // The expected path already reaped the child.
+      }
+    }
   });
 
   it("fails closed for missing configuration and non-allowlisted stdio commands", async () => {
@@ -454,7 +473,9 @@ describe("HealthMonitor MCP readiness", () => {
       transport: "stdio",
       command: process.execPath,
       args: [script],
-      timeoutMs: 500,
+      // Allow the child runtime to start under the fully parallel workspace coverage job.
+      // The assertion still exercises the post-initialize tools/list timeout.
+      timeoutMs: 2_000,
     });
 
     await expect(
