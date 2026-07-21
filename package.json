@@ -11,7 +11,7 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "preinstall": "node scripts/verify-toolchain.mjs --runtime",
-    "toolchain:test": "node --test scripts/codecov-reports.test.mjs scripts/automation-policy.test.mjs scripts/mirror-policy.test.mjs scripts/toolchain-contract.test.mjs scripts/native-module-check.test.mjs scripts/release-policy.test.mjs",
+    "toolchain:test": "node --test scripts/codecov-reports.test.mjs scripts/smoke-prod-health.test.mjs scripts/automation-policy.test.mjs scripts/mirror-policy.test.mjs scripts/toolchain-contract.test.mjs scripts/native-module-check.test.mjs scripts/release-policy.test.mjs",
     "toolchain:check:runtime": "node scripts/verify-toolchain.mjs --runtime",
     "toolchain:check:repository": "node scripts/verify-toolchain.mjs --repository",
     "toolchain:check:native": "node scripts/verify-native-modules.mjs",
