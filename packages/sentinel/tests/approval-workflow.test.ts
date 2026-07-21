@@ -408,21 +408,23 @@ describe("ApprovalGate", () => {
       )
     ).resolves.toBe("approved");
 
-    const upstreamStart = Date.now();
-    await expect(
-      failOpenGate.hold(
-        { tool: "danger", input: {}, headers: {} },
-        {
-          channels: ["cli"],
-          timeout: "1s",
-          upstreamExpiresAt: new Date(upstreamStart + 100),
-          requesterPrincipalId: "requester",
-          approverPrincipalId: "approver",
-          idempotencyKey: "upstream-expiry",
-        }
-      )
-    ).resolves.toBe("expired");
-    expect(Date.now() - upstreamStart).toBeLessThan(1_000);
+    const upstreamExpiresAt = new Date(Date.now() + 100);
+    const expiredRequest = await failOpenGate.holdRequest(
+      { tool: "danger", input: {}, headers: {} },
+      {
+        channels: ["cli"],
+        timeout: "1s",
+        upstreamExpiresAt,
+        requesterPrincipalId: "requester",
+        approverPrincipalId: "approver",
+        idempotencyKey: "upstream-expiry",
+      }
+    );
+    expect(expiredRequest).toMatchObject({
+      status: "expired",
+      upstreamExpiresAt,
+      expiresAt: upstreamExpiresAt,
+    });
 
     const pending = await failOpenGate.request(
       { tool: "danger", input: {}, headers: {} },
