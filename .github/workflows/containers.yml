@@ -184,6 +184,7 @@ jobs:
           archive="/tmp/gh_${GH_CLI_VERSION}_linux_amd64.tar.gz"
           extract_dir="/tmp/gh_${GH_CLI_VERSION}_linux_amd64"
           curl --fail --silent --show-error --location \
+            --proto '=https' --proto-redir '=https' \
             "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.tar.gz" \
             --output "${archive}"
           printf '%s  %s\n' "${GH_CLI_SHA256}" "${archive}" | sha256sum --check

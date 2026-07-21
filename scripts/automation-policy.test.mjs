@@ -150,3 +150,40 @@ test("container attestation verification uses a checksum-pinned GitHub CLI", () 
   assert.match(workflow, /--source-ref/);
   assert.match(workflow, /--source-digest/);
 });
+
+test("runtime images contain production deploys without package managers or builder dependencies", () => {
+  for (const path of packageDockerfiles()) {
+    const content = read(path);
+    assert.match(
+      content,
+      /pnpm --ignore-scripts --filter @oaslananka\/[a-z]+ deploy --legacy --prod \/deploy\/[a-z]+/,
+      path
+    );
+    assert.match(content, /rm -rf \/usr\/local\/lib\/node_modules\/(npm|corepack)/, path);
+    assert.match(content, /rm -f[\s\\\n]+\/usr\/local\/bin\/npm/, path);
+    assert.doesNotMatch(content, /COPY --from=builder[^\n]*\/workspace\/node_modules/, path);
+    assert.doesNotMatch(
+      content,
+      /COPY --from=builder[^\n]*\/workspace\/packages\/shared\/node_modules/,
+      path
+    );
+  }
+});
+
+test("SQLite runtime deploys preserve the builder-verified native addon", () => {
+  for (const packageName of ["atlas", "forge", "observatory", "sentinel"]) {
+    const path = `packages/${packageName}/Dockerfile`;
+    const content = read(path);
+    assert.match(
+      content,
+      /find \/workspace\/node_modules -path '\*\/better-sqlite3\/build\/Release\/better_sqlite3\.node'/,
+      path
+    );
+    assert.match(content, new RegExp(`/deploy/${packageName}/node_modules/better-sqlite3`), path);
+    assert.match(
+      content,
+      /cp "\$\{source\}" "\$\{target\}\/build\/Release\/better_sqlite3\.node"/,
+      path
+    );
+  }
+});

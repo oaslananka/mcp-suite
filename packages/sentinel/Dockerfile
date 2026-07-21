@@ -20,24 +20,27 @@ COPY packages/shared ./packages/shared
 COPY packages/sentinel ./packages/sentinel
 
 RUN pnpm turbo run build --filter=@oaslananka/sentinel
+RUN pnpm --ignore-scripts --filter @oaslananka/sentinel deploy --legacy --prod /deploy/sentinel
+RUN source="$(find /workspace/node_modules -path '*/better-sqlite3/build/Release/better_sqlite3.node' -print -quit)"; \
+    target="$(readlink -f /deploy/sentinel/node_modules/better-sqlite3)"; \
+    test -n "${source}"; \
+    test -d "${target}"; \
+    mkdir -p "${target}/build/Release"; \
+    cp "${source}" "${target}/build/Release/better_sqlite3.node"
 
 FROM node@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS runtime
 
 LABEL org.opencontainers.image.source="https://github.com/oaslananka/mcp-suite"
 
-RUN apk add --no-cache dumb-init procps
+RUN apk add --no-cache dumb-init procps && \
+    rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack && \
+    rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/pnpm /usr/local/bin/pnpx
 WORKDIR /app
 
 RUN addgroup -g 1001 -S mcp && adduser -S -u 1001 -G mcp mcp
 RUN mkdir -p /app/data && chown -R mcp:mcp /app/data
 
-COPY --from=builder --chown=mcp:mcp /workspace/node_modules ./node_modules
-COPY --from=builder --chown=mcp:mcp /workspace/packages/shared/package.json ./packages/shared/package.json
-COPY --from=builder --chown=mcp:mcp /workspace/packages/shared/dist ./packages/shared/dist
-COPY --from=builder --chown=mcp:mcp /workspace/packages/shared/node_modules ./packages/shared/node_modules
-COPY --from=builder --chown=mcp:mcp /workspace/packages/sentinel/package.json ./packages/sentinel/package.json
-COPY --from=builder --chown=mcp:mcp /workspace/packages/sentinel/dist ./packages/sentinel/dist
-COPY --from=builder --chown=mcp:mcp /workspace/packages/sentinel/node_modules ./packages/sentinel/node_modules
+COPY --from=builder --chown=mcp:mcp /deploy/sentinel ./packages/sentinel
 
 USER mcp
 

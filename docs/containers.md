@@ -15,6 +15,8 @@ The six publishable service images are built from the package Dockerfiles and pu
 
 Every publication builds `linux/amd64` and `linux/arm64` with Docker Buildx. BuildKit attaches an SBOM and maximum-mode provenance to each multi-architecture image index.
 
+Runtime stages copy a package-scoped `pnpm deploy --prod` tree rather than the workspace root. npm, Corepack, pnpm, builder-only dependencies, and `esbuild` are removed from runtime images. SQLite services copy only the already rebuilt `better_sqlite3.node` addon from the matching architecture builder, preserving the verified Node ABI without retaining compilers or install tooling.
+
 ## Pull Request Security Gate
 
 Every pull request performs two container build paths for each image:
