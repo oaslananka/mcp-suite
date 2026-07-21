@@ -1,0 +1,7 @@
+services:
+  forge:
+    image: ghcr.io/oaslananka/mcp-suite-forge:${MCP_SUITE_IMAGE_TAG:?set MCP_SUITE_IMAGE_TAG}
+  atlas:
+    image: ghcr.io/oaslananka/mcp-suite-atlas:${MCP_SUITE_IMAGE_TAG:?set MCP_SUITE_IMAGE_TAG}
+  observatory:
+    image: ghcr.io/oaslananka/mcp-suite-observatory:${MCP_SUITE_IMAGE_TAG:?set MCP_SUITE_IMAGE_TAG}
