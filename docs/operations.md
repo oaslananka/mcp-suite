@@ -44,6 +44,10 @@ The required quality job enforces workspace coverage thresholds and an 80% chang
 
 Use GitHub Environment secrets or the configured secret provider integration. Production publish workflows should require environment approval. Codecov uploads use GitHub OIDC and do not require a long-lived repository token; fork pull requests use the public tokenless path.
 
+Expected repository-level release secret:
+
+- `RELEASE_PLEASE_TOKEN`: dedicated GitHub token used only by Release Please so its pull request updates trigger required CI workflows.
+
 Expected environment names:
 
 - `npm-production`
