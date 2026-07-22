@@ -15,6 +15,22 @@ test("repository release guidance uses release-please instead of Changesets", ()
   assert.match(pullRequestTemplate, /release-please manifest/i);
 });
 
+test("Release Please uses a dedicated token so release PRs trigger required CI", () => {
+  const releaseWorkflow = readFileSync(
+    new URL("../.github/workflows/release.yml", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    releaseWorkflow,
+    /googleapis\/release-please-action@[a-f0-9]{40}[\s\S]*token:\s+\$\{\{ secrets\.RELEASE_PLEASE_TOKEN \}\}/
+  );
+  assert.doesNotMatch(
+    releaseWorkflow,
+    /token:\s+\$\{\{\s*(?:github\.token|secrets\.GITHUB_TOKEN)\s*\}\}/
+  );
+});
+
 test("npm publication uses OIDC by default and isolates the one-time bootstrap token", () => {
   const publishWorkflow = readFileSync(
     new URL("../.github/workflows/publish.yml", import.meta.url),
