@@ -1,6 +1,6 @@
 {
   "name": "@oaslananka/shared",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Shared MCP types, JSON-RPC utils, logger, test helpers",
   "license": "Apache-2.0",
   "author": "oaslananka <oaslananka@users.noreply.github.com>",

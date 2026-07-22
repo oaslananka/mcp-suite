@@ -1,6 +1,6 @@
 {
   "name": "@oaslananka/atlas",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "npm Registry for MCP Servers — discover, compare, install, and trust any MCP server",
   "license": "Apache-2.0",
   "author": "oaslananka <oaslananka@users.noreply.github.com>",
