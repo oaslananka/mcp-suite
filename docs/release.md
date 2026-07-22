@@ -31,6 +31,8 @@ Release Please must use the dedicated `RELEASE_PLEASE_TOKEN` Actions secret thro
 
 The token is limited to GitHub release automation. It must not be reused for npm publication, copied into command output, or exposed as an environment variable. npm publishing remains a separate manual workflow protected by the `npm-production` environment.
 
+Package-level `CHANGELOG.md` files are generated and maintained by Release Please. They are intentionally excluded from the repository-wide Prettier gate so a Release Please update cannot fail required CI solely because the generator's canonical Markdown differs from Prettier's output. Review changelog content in the release pull request, but do not hand-format generated entries.
+
 ## Validation
 
 ```bash
