@@ -73,6 +73,12 @@ jobs:
           set -euo pipefail
           pnpm run test:coverage
 
+      - name: Toolchain trust-boundary coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run toolchain:test:coverage
+
       - name: Discover Codecov reports
         id: codecov-coverage-reports
         if: ${{ !cancelled() }}

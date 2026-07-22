@@ -69,3 +69,17 @@ test("required CI verifies clean-installable npm tarballs", () => {
   assert.match(ciWorkflow, /scripts\/verify-npm-artifacts\.mjs/);
   assert.match(ciWorkflow, /scripts\/smoke-npm-packages\.mjs[\s\S]*--source tarballs/);
 });
+
+test("Codecov includes the npm release trust boundary and CI enforces its coverage", () => {
+  const ciWorkflow = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+  const codecov = readFileSync(new URL("../codecov.yml", import.meta.url), "utf8");
+  const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+
+  assert.match(ciWorkflow, /name: Toolchain trust-boundary coverage/);
+  assert.match(ciWorkflow, /pnpm run toolchain:test:coverage/);
+  assert.doesNotMatch(codecov, /^\s*- ["']scripts\/\*\*["']\s*$/mu);
+  assert.match(codecov, /npm-release-lib\\.mjs/);
+  assert.match(packageJson.scripts["toolchain:test:coverage"], /--check-coverage/);
+  assert.match(packageJson.scripts["toolchain:test:coverage"], /--lines 90/);
+  assert.match(packageJson.scripts["toolchain:test:coverage"], /--branches 80/);
+});

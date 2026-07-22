@@ -1,18 +1,33 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
 import {
+  fetchPublishedVersion,
+  inspectTarball,
+  loadExpectedPackages,
   npmCommand,
   registryPublicationPlan,
-  SYSTEM_TAR,
   resolveNpmCliPath,
+  runCommand,
   sortPackages,
+  SYSTEM_TAR,
   verifyNpmArtifacts,
+  waitForPublishedIntegrity,
 } from "./npm-release-lib.mjs";
 
 test("npm CLI resolves from the active Node runtime", () => {
@@ -187,7 +202,286 @@ test("publication plan fails closed when an immutable npm version has different 
   );
 });
 
-async function createFixture({ atlasSymlink = false, omitAtlasDist = false } = {}) {
+test("npm CLI falls back to lifecycle metadata and fails closed without a trusted path", () => {
+  const original = process.env.npm_execpath;
+  const expected = resolveNpmCliPath();
+  try {
+    process.env.npm_execpath = expected;
+    assert.equal(resolveNpmCliPath("/missing/node"), expected);
+    delete process.env.npm_execpath;
+    assert.throws(() => resolveNpmCliPath("/missing/node"), /Unable to locate npm CLI/u);
+  } finally {
+    if (original === undefined) {
+      delete process.env.npm_execpath;
+    } else {
+      process.env.npm_execpath = original;
+    }
+  }
+});
+
+test("release package loading skips private and non-npm workspaces", async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), "mcp-suite-package-loading-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await writeJson(path.join(root, "release-please-config.json"), {
+    packages: {
+      "packages/public": {},
+      "packages/private": {},
+      "packages/other-registry": {},
+    },
+  });
+  await writeJson(path.join(root, ".release-please-manifest.json"), {
+    "packages/public": "1.0.0",
+    "packages/private": "1.0.0",
+    "packages/other-registry": "1.0.0",
+  });
+  await writeJson(
+    path.join(root, "packages/public/package.json"),
+    packageJson("@oaslananka/public", { main: "dist/index.js" })
+  );
+  await writeJson(
+    path.join(root, "packages/private/package.json"),
+    packageJson("@oaslananka/private", { private: true })
+  );
+  await writeJson(
+    path.join(root, "packages/other-registry/package.json"),
+    packageJson("@oaslananka/other-registry", {
+      publishConfig: { access: "public", registry: "https://example.invalid/" },
+    })
+  );
+
+  const packages = await loadExpectedPackages(root);
+  assert.deepEqual(
+    packages.map((pkg) => pkg.name),
+    ["@oaslananka/public"]
+  );
+});
+
+test("artifact verification rejects missing, malformed, and duplicate checksums", async (t) => {
+  await t.test("missing checksum", async () => {
+    const fixture = await createFixture();
+    try {
+      const lines = (await readFile(fixture.checksumsPath, "utf8")).trim().split("\n");
+      await writeFile(fixture.checksumsPath, `${lines[0]}\n`, "utf8");
+      await assert.rejects(() => verifyFixture(fixture), /missing from SHA256SUMS/u);
+    } finally {
+      await cleanupFixture(fixture);
+    }
+  });
+
+  await t.test("checksum mismatch", async () => {
+    const fixture = await createFixture();
+    try {
+      const content = await readFile(fixture.checksumsPath, "utf8");
+      await writeFile(fixture.checksumsPath, content.replace(/^[a-f0-9]{64}/u, "0".repeat(64)));
+      await assert.rejects(() => verifyFixture(fixture), /failed SHA-256 verification/u);
+    } finally {
+      await cleanupFixture(fixture);
+    }
+  });
+
+  await t.test("duplicate checksum entry", async () => {
+    const fixture = await createFixture();
+    try {
+      const [first] = (await readFile(fixture.checksumsPath, "utf8")).trim().split("\n");
+      await appendFile(fixture.checksumsPath, `${first}\n`, "utf8");
+      await assert.rejects(() => verifyFixture(fixture), /Duplicate checksum entry/u);
+    } finally {
+      await cleanupFixture(fixture);
+    }
+  });
+});
+
+test("artifact verification rejects incomplete and duplicate package sets", async (t) => {
+  await t.test("missing package", async () => {
+    const fixture = await createFixture();
+    try {
+      await unlink(fixture.atlasTarball);
+      await assert.rejects(() => verifyFixture(fixture), /Missing npm artifacts/u);
+    } finally {
+      await cleanupFixture(fixture);
+    }
+  });
+
+  await t.test("duplicate package", async () => {
+    const fixture = await createFixture();
+    try {
+      const duplicate = path.join(fixture.artifactsDir, "duplicate-atlas.tgz");
+      await copyFile(fixture.atlasTarball, duplicate);
+      const bytes = await readFile(duplicate);
+      await appendFile(
+        fixture.checksumsPath,
+        `${createHash("sha256").update(bytes).digest("hex")}  artifacts/npm/${path.basename(duplicate)}\n`
+      );
+      await assert.rejects(() => verifyFixture(fixture), /Duplicate artifact/u);
+    } finally {
+      await cleanupFixture(fixture);
+    }
+  });
+});
+
+test("artifact verification rejects release metadata and entrypoint drift", async (t) => {
+  const cases = [
+    [
+      "manifest version",
+      { atlasExtra: { version: "2.0.0" } },
+      /does not match package and release manifest/u,
+    ],
+    [
+      "registry",
+      {
+        atlasArtifactExtra: {
+          publishConfig: { access: "public", registry: "https://example.invalid/" },
+        },
+      },
+      /artifact registry must be/u,
+    ],
+    [
+      "access",
+      {
+        atlasExtra: {
+          publishConfig: { access: "restricted", registry: "https://registry.npmjs.org/" },
+        },
+      },
+      /publish access must be public/u,
+    ],
+    [
+      "repository",
+      {
+        atlasArtifactExtra: {
+          repository: { type: "git", url: "https://example.invalid/repo.git" },
+        },
+      },
+      /repository.url must match/u,
+    ],
+    [
+      "workspace dependency",
+      { atlasArtifactExtra: { dependencies: { "@oaslananka/shared": "workspace:*" } } },
+      /unresolved workspace dependency/u,
+    ],
+    [
+      "internal version",
+      { atlasArtifactExtra: { dependencies: { "@oaslananka/shared": "2.0.0" } } },
+      /must resolve to 1.0.0/u,
+    ],
+    [
+      "missing entrypoint",
+      { atlasArtifactExtra: { main: "dist/missing.js" } },
+      /declared entrypoint/u,
+    ],
+    [
+      "unsafe entrypoint",
+      { atlasArtifactExtra: { main: "../outside.js" } },
+      /Unsafe package entrypoint/u,
+    ],
+    ["bad shebang", { atlasCli: "console.log('atlas');\n" }, /missing the Node.js shebang/u],
+  ];
+
+  for (const [name, options, expected] of cases) {
+    await t.test(name, async () => {
+      const fixture = await createFixture(options);
+      try {
+        await assert.rejects(() => verifyFixture(fixture), expected);
+      } finally {
+        await cleanupFixture(fixture);
+      }
+    });
+  }
+});
+
+test("archive inspection rejects invalid roots, duplicate entries, and malformed package metadata", async (t) => {
+  await t.test("invalid root", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "mcp-suite-invalid-root-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    await writeFile(path.join(root, "outside.txt"), "outside\n");
+    const tarball = path.join(root, "invalid-root.tgz");
+    execFileSync(SYSTEM_TAR, ["-czf", tarball, "outside.txt"], { cwd: root });
+    await assert.rejects(() => inspectTarball(tarball), /unexpected archive root/u);
+  });
+
+  await t.test("duplicate entries", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "mcp-suite-duplicate-entry-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    await writeJson(path.join(root, "package/package.json"), packageJson("@oaslananka/shared"));
+    const tarball = path.join(root, "duplicate.tgz");
+    execFileSync(SYSTEM_TAR, ["-czf", tarball, "package/package.json", "package/package.json"], {
+      cwd: root,
+    });
+    await assert.rejects(() => inspectTarball(tarball), /duplicate archive entries/u);
+  });
+
+  await t.test("malformed package.json", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "mcp-suite-invalid-json-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    await mkdir(path.join(root, "package"), { recursive: true });
+    await writeFile(path.join(root, "package/package.json"), "{invalid", "utf8");
+    const tarball = path.join(root, "invalid-json.tgz");
+    execFileSync(SYSTEM_TAR, ["-czf", tarball, "package"], { cwd: root });
+    await assert.rejects(() => inspectTarball(tarball), /contains invalid package.json/u);
+  });
+});
+
+test("registry checks handle absent versions, errors, retries, and SHA-1 fallback", async () => {
+  assert.equal(
+    await fetchPublishedVersion("@oaslananka/shared", "1.0.0", async () =>
+      response(200, { versions: {} })
+    ),
+    null
+  );
+  await assert.rejects(
+    () => fetchPublishedVersion("@oaslananka/shared", "1.0.0", async () => response(503, {})),
+    /HTTP 503/u
+  );
+
+  const artifact = {
+    name: "@oaslananka/shared",
+    version: "1.0.0",
+    integrity: "sha512-expected",
+    shasum: "expected-sha1",
+  };
+  let calls = 0;
+  await waitForPublishedIntegrity(artifact, {
+    attempts: 2,
+    delayMs: 0,
+    sleep: async () => {},
+    fetchImpl: async () => {
+      calls += 1;
+      return calls === 1
+        ? response(404, {})
+        : response(200, { versions: { "1.0.0": { dist: { shasum: "expected-sha1" } } } });
+    },
+  });
+  assert.equal(calls, 2);
+
+  await assert.rejects(
+    () =>
+      waitForPublishedIntegrity(artifact, {
+        attempts: 2,
+        delayMs: 0,
+        sleep: async () => {},
+        fetchImpl: async () => response(404, {}),
+      }),
+    /did not become available/u
+  );
+});
+
+test("command execution reports non-zero exits and missing executables", () => {
+  assert.throws(
+    () => runCommand(process.execPath, ["--eval", "process.exit(7)"], { capture: true }),
+    /failed/u
+  );
+  assert.throws(
+    () => runCommand("/definitely/missing/executable", [], { capture: true }),
+    /ENOENT/u
+  );
+});
+
+async function createFixture({
+  atlasArtifactExtra = {},
+  atlasCli = "#!/usr/bin/env node\nconsole.log('atlas');\n",
+  atlasExtra = {},
+  atlasSymlink = false,
+  omitAtlasDist = false,
+} = {}) {
   const root = await mkdtemp(path.join(tmpdir(), "mcp-suite-npm-release-"));
   const artifactsDir = path.join(root, "artifacts", "npm");
   await mkdir(artifactsDir, { recursive: true });
@@ -202,11 +496,15 @@ async function createFixture({ atlasSymlink = false, omitAtlasDist = false } = {
     "packages/shared": "1.0.0",
   });
 
-  const shared = packageJson("@oaslananka/shared", { main: "dist/index.js" });
+  const shared = packageJson("@oaslananka/shared", {
+    exports: { ".": { import: "./dist/index.js" } },
+    main: "dist/index.js",
+  });
   const atlas = packageJson("@oaslananka/atlas", {
     main: "dist/index.js",
     bin: { atlas: "./dist/cli.js" },
     dependencies: { "@oaslananka/shared": "1.0.0" },
+    ...atlasExtra,
   });
   await writeJson(path.join(root, "packages/shared/package.json"), shared);
   await writeJson(path.join(root, "packages/atlas/package.json"), atlas);
@@ -220,9 +518,14 @@ async function createFixture({ atlasSymlink = false, omitAtlasDist = false } = {
         "dist/index.js": atlasSymlink
           ? { symlink: "../../outside.js" }
           : "export const atlas = true;\n",
-        "dist/cli.js": "#!/usr/bin/env node\nconsole.log('atlas');\n",
+        "dist/cli.js": atlasCli,
       };
-  const atlasTarball = await createTarball(root, artifactsDir, atlas, atlasFiles);
+  const atlasTarball = await createTarball(
+    root,
+    artifactsDir,
+    { ...atlas, ...atlasArtifactExtra },
+    atlasFiles
+  );
   const checksumsPath = path.join(root, "artifacts", "SHA256SUMS.txt");
   const checksums = [];
   for (const file of [sharedTarball, atlasTarball]) {
@@ -233,7 +536,19 @@ async function createFixture({ atlasSymlink = false, omitAtlasDist = false } = {
   }
   await writeFile(checksumsPath, `${checksums.join("\n")}\n`, "utf8");
 
-  return { root, artifactsDir, checksumsPath };
+  return { root, artifactsDir, checksumsPath, atlasTarball, sharedTarball };
+}
+
+function verifyFixture(fixture) {
+  return verifyNpmArtifacts({
+    root: fixture.root,
+    artifactsDir: fixture.artifactsDir,
+    checksumsPath: fixture.checksumsPath,
+  });
+}
+
+function cleanupFixture(fixture) {
+  return rm(fixture.root, { recursive: true, force: true });
 }
 
 async function createTarball(root, artifactsDir, manifest, files) {
