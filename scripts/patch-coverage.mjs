@@ -12,7 +12,7 @@ const SYSTEM_GIT =
   process.platform === "win32" ? "C:/Program Files/Git/cmd/git.exe" : "/usr/bin/git";
 const ZERO_SHA = /^0+$/u;
 const SOURCE_FILE = /\.(?:[cm]?[jt]sx?)$/u;
-const TEST_FILE = /(?:^|\/)(?:tests?|__tests__)(?:\/|$)|\.(?:spec|test)\.[cm]?[jt]sx?$/u;
+const TEST_FILE = /(?:(?:^|\/)(?:tests?|__tests__)(?:\/|$)|\.(?:spec|test)\.[cm]?[jt]sx?$)/u;
 
 export function parseUnifiedDiff(diffText) {
   const changed = new Map();
@@ -41,7 +41,7 @@ export function parseUnifiedDiff(diffText) {
       continue;
     }
     if (line.startsWith("-")) continue;
-    if (line.startsWith("\\ No newline at end of file")) continue;
+    if (line.startsWith(String.raw`\ No newline at end of file`)) continue;
     currentNewLine += 1;
   }
 
@@ -56,69 +56,54 @@ export async function loadLcovCoverage(rootDir, reportPaths) {
     const normalizedReport = normalizeRepositoryPath(reportPath);
     const reportRoot = workspaceRootForReport(normalizedReport);
     const report = await readFile(path.join(canonicalRoot, normalizedReport), "utf8");
-    let currentFile;
-
-    for (const line of report.split("\n")) {
-      if (line.startsWith("SF:")) {
-        currentFile = normalizeSourcePath(canonicalRoot, reportRoot, line.slice(3));
-        if (!coverage.has(currentFile)) coverage.set(currentFile, new Map());
-        continue;
-      }
-
-      if (!currentFile || !line.startsWith("DA:")) continue;
-      const match = /^DA:(\d+),(\d+(?:\.\d+)?)/u.exec(line);
-      if (!match) continue;
-      const lineNumber = Number.parseInt(match[1], 10);
-      const hits = Number.parseFloat(match[2]);
-      const fileCoverage = coverage.get(currentFile);
-      fileCoverage.set(lineNumber, Math.max(fileCoverage.get(lineNumber) ?? 0, hits));
-    }
+    mergeLcovReport(coverage, canonicalRoot, reportRoot, report);
   }
 
   return coverage;
 }
 
-export function evaluatePatchCoverage(changed, coverage, target = 80) {
-  if (!Number.isFinite(target) || target < 0 || target > 100) {
-    throw new Error(`Patch coverage target must be between 0 and 100, received ${target}`);
-  }
-
-  const files = [];
-  let covered = 0;
-  let total = 0;
-
-  for (const [file, changedLines] of [...changed.entries()].sort(([left], [right]) =>
-    left.localeCompare(right)
-  )) {
-    const fileCoverage = coverage.get(file);
-    let fileCovered = 0;
-    let fileTotal = 0;
-
-    if (fileCoverage) {
-      for (const lineNumber of changedLines.keys()) {
-        if (!fileCoverage.has(lineNumber)) continue;
-        fileTotal += 1;
-        if ((fileCoverage.get(lineNumber) ?? 0) > 0) fileCovered += 1;
-      }
-    } else if (isEnforcedSourceFile(file)) {
-      for (const sourceLine of changedLines.values()) {
-        if (!isCoverableFallbackLine(sourceLine)) continue;
-        fileTotal += 1;
-      }
+function mergeLcovReport(coverage, canonicalRoot, reportRoot, report) {
+  let currentCoverage;
+  for (const line of report.split("\n")) {
+    if (line.startsWith("SF:")) {
+      currentCoverage = coverageForSource(coverage, canonicalRoot, reportRoot, line.slice(3));
+      continue;
     }
 
-    if (fileTotal === 0) continue;
-    files.push({
-      file,
-      covered: fileCovered,
-      total: fileTotal,
-      coverage: percentage(fileCovered, fileTotal),
-    });
-    covered += fileCovered;
-    total += fileTotal;
+    const entry = parseLcovDataLine(line);
+    if (!currentCoverage || !entry) continue;
+    const previousHits = currentCoverage.get(entry.lineNumber) ?? 0;
+    currentCoverage.set(entry.lineNumber, Math.max(previousHits, entry.hits));
   }
+}
 
+function coverageForSource(coverage, canonicalRoot, reportRoot, sourcePath) {
+  const normalized = normalizeSourcePath(canonicalRoot, reportRoot, sourcePath);
+  const fileCoverage = coverage.get(normalized) ?? new Map();
+  coverage.set(normalized, fileCoverage);
+  return fileCoverage;
+}
+
+function parseLcovDataLine(line) {
+  if (!line.startsWith("DA:")) return undefined;
+  const match = /^DA:(\d+),(\d+(?:\.\d+)?)/u.exec(line);
+  if (!match) return undefined;
+  return {
+    lineNumber: Number.parseInt(match[1], 10),
+    hits: Number.parseFloat(match[2]),
+  };
+}
+
+export function evaluatePatchCoverage(changed, coverage, target = 80) {
+  validateCoverageTarget(target);
+  const files = [...changed.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([file, changedLines]) => evaluateFileCoverage(file, changedLines, coverage.get(file)))
+    .filter(Boolean);
+  const covered = files.reduce((sum, file) => sum + file.covered, 0);
+  const total = files.reduce((sum, file) => sum + file.total, 0);
   const actual = total === 0 ? 100 : percentage(covered, total);
+
   return {
     target,
     covered,
@@ -127,6 +112,41 @@ export function evaluatePatchCoverage(changed, coverage, target = 80) {
     passed: actual >= target,
     files,
   };
+}
+
+function validateCoverageTarget(target) {
+  if (!Number.isFinite(target) || target < 0 || target > 100) {
+    throw new Error(`Patch coverage target must be between 0 and 100, received ${target}`);
+  }
+}
+
+function evaluateFileCoverage(file, changedLines, fileCoverage) {
+  const counts = fileCoverage
+    ? countInstrumentedLines(changedLines, fileCoverage)
+    : countUninstrumentedLines(file, changedLines);
+  if (counts.total === 0) return undefined;
+  return {
+    file,
+    ...counts,
+    coverage: percentage(counts.covered, counts.total),
+  };
+}
+
+function countInstrumentedLines(changedLines, fileCoverage) {
+  let covered = 0;
+  let total = 0;
+  for (const lineNumber of changedLines.keys()) {
+    if (!fileCoverage.has(lineNumber)) continue;
+    total += 1;
+    if ((fileCoverage.get(lineNumber) ?? 0) > 0) covered += 1;
+  }
+  return { covered, total };
+}
+
+function countUninstrumentedLines(file, changedLines) {
+  if (!isEnforcedSourceFile(file)) return { covered: 0, total: 0 };
+  const total = [...changedLines.values()].filter(isCoverableFallbackLine).length;
+  return { covered: 0, total };
 }
 
 export async function checkPatchCoverage({ rootDir, base, target = 80 } = {}) {
