@@ -7,10 +7,16 @@ on:
         description: "Type publish to confirm guarded npm publication from GitHub Release assets"
         required: true
         type: string
+      authentication:
+        description: "Use OIDC after trusted publishers exist; bootstrap is only for first package creation"
+        required: true
+        type: choice
+        options:
+          - oidc
+          - bootstrap
+        default: oidc
 
-permissions:
-  contents: read
-  id-token: write
+permissions: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,9 +26,12 @@ jobs:
   npm:
     name: Publish npm Packages
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     environment: npm-production
     if: ${{ inputs.APPROVE_RELEASE == 'publish' }}
+    permissions:
+      contents: read # Download release assets and verify GitHub attestations.
+      id-token: write # Exchange the GitHub OIDC identity for an npm publish credential.
     steps:
       - name: Checkout
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
@@ -34,14 +43,28 @@ jobs:
         with:
           registry-url: https://registry.npmjs.org/
 
-      - name: Verify release state
+      - name: Verify trusted-publishing npm CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm_version="$(npm --version)"
+          node - "${npm_version}" <<'NODE'
+          const raw = process.argv[2];
+          const version = raw.split(".").map(Number);
+          if (version.some((part) => !Number.isInteger(part)) || version[0] < 11 || (version[0] === 11 && version[1] < 5)) {
+            console.error(`npm 11.5.1 or newer is required for trusted publishing; found ${raw}`);
+            process.exit(1);
+          }
+          NODE
+
+      - name: Verify resumable release state
         shell: bash
         run: |
           set -euo pipefail
           node scripts/release-state.mjs --json > release-state.json
           node -e "const fs=require('node:fs'); const state=JSON.parse(fs.readFileSync('release-state.json','utf8')); if (!state.safe_to_publish) { console.error(JSON.stringify(state.blockers, null, 2)); process.exit(1); }"
 
-      - name: Download GitHub Release npm artifacts
+      - name: Download latest GitHub Release assets
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -49,14 +72,79 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/npm
           gh release download --pattern "*.tgz" --dir artifacts/npm
+          gh release download --pattern "npm-release-manifest.json" --dir artifacts
+          gh release download --pattern "sbom.spdx.json" --dir artifacts
+          gh release download --pattern "SHA256SUMS.txt" --dir artifacts
 
-      - name: Publish npm package tarballs
+      - name: Verify release checksums and package contents
         shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
-          test -n "${NODE_AUTH_TOKEN}"
-          for package_file in artifacts/npm/*.tgz; do
-            npm publish "${package_file}" --access public --provenance
+          sha256sum --check artifacts/SHA256SUMS.txt
+          node scripts/verify-npm-artifacts.mjs \
+            --artifacts-dir artifacts/npm \
+            --checksums artifacts/SHA256SUMS.txt \
+            --output artifacts/npm-release-manifest.verified.json
+          node <<'NODE'
+          const fs = require("node:fs");
+          const expected = JSON.parse(fs.readFileSync("artifacts/npm-release-manifest.json", "utf8"));
+          const verified = JSON.parse(fs.readFileSync("artifacts/npm-release-manifest.verified.json", "utf8"));
+          delete expected.generated_at;
+          delete verified.generated_at;
+          if (JSON.stringify(expected) !== JSON.stringify(verified)) {
+            console.error("Downloaded npm release manifest does not match the verified tarballs.");
+            process.exit(1);
+          }
+          NODE
+
+      - name: Verify GitHub artifact attestations
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for artifact in \
+            artifacts/npm/*.tgz \
+            artifacts/npm-release-manifest.json \
+            artifacts/sbom.spdx.json \
+            artifacts/SHA256SUMS.txt; do
+            gh attestation verify "${artifact}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml" \
+              --source-ref refs/heads/main
           done
+
+      - name: Smoke downloaded package tarballs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smoke-npm-packages.mjs \
+            --source tarballs \
+            --artifacts-dir artifacts/npm \
+            --manifest artifacts/npm-release-manifest.verified.json
+
+      - name: Publish or resume npm packages
+        shell: bash
+        env:
+          NPM_BOOTSTRAP_TOKEN: ${{ inputs.authentication == 'bootstrap' && secrets.NPM_BOOTSTRAP_TOKEN || '' }}
+          NPM_PUBLISH_AUTH: ${{ inputs.authentication }}
+        run: |
+          set -euo pipefail
+          node scripts/publish-npm-artifacts.mjs \
+            --auth "${NPM_PUBLISH_AUTH}" \
+            --artifacts-dir artifacts/npm \
+            --manifest artifacts/npm-release-manifest.verified.json
+
+      - name: Verify clean registry installation and provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smoke-npm-packages.mjs \
+            --source registry \
+            --manifest artifacts/npm-release-manifest.verified.json
+
+      - name: Record post-publication state
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/release-state.mjs --json

@@ -78,4 +78,4 @@ ignore:
   - "**/node_modules/**"
   - "docs/**"
   - "examples/**"
-  - "scripts/**"
+  - 'scripts/(?!npm-release-lib\.mjs$).*'

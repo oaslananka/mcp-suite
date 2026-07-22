@@ -27,6 +27,7 @@ jobs:
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Set up toolchain
         uses: ./.github/actions/setup-toolchain
@@ -73,6 +74,20 @@ jobs:
           set -euo pipefail
           pnpm run test:coverage
 
+      - name: Toolchain trust-boundary coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run toolchain:test:coverage
+
+      - name: Enforce patch coverage
+        shell: bash
+        env:
+          PATCH_COVERAGE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          pnpm run patch:coverage -- --base "$PATCH_COVERAGE_BASE" --target 80
+
       - name: Discover Codecov reports
         id: codecov-coverage-reports
         if: ${{ !cancelled() }}
@@ -109,6 +124,23 @@ jobs:
         run: |
           set -euo pipefail
           pnpm run build
+
+      - name: Verify npm package tarballs
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf test-results/npm-release
+          mkdir -p test-results/npm-release/npm
+          node scripts/pack-npm-artifacts.mjs test-results/npm-release/npm
+          sha256sum test-results/npm-release/npm/*.tgz > test-results/npm-release/SHA256SUMS.txt
+          node scripts/verify-npm-artifacts.mjs \
+            --artifacts-dir test-results/npm-release/npm \
+            --checksums test-results/npm-release/SHA256SUMS.txt \
+            --output test-results/npm-release/npm-release-manifest.json
+          node scripts/smoke-npm-packages.mjs \
+            --source tarballs \
+            --artifacts-dir test-results/npm-release/npm \
+            --manifest test-results/npm-release/npm-release-manifest.json
 
       - name: Install Playwright Chromium
         shell: bash

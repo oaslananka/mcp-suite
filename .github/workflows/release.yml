@@ -22,9 +22,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
-      contents: write
-      pull-requests: write
-      issues: write
+      contents: write # Create component releases and upload release metadata.
+      pull-requests: write # Maintain the release-please pull request.
+      issues: write # Update release-please issue references.
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
       paths_released: ${{ steps.release.outputs.paths_released }}
@@ -55,9 +55,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
-      contents: write
-      id-token: write
-      attestations: write
+      contents: write # Upload verified assets to component releases.
+      id-token: write # Mint the identity used for artifact provenance.
+      attestations: write # Store GitHub attestations for release assets.
     steps:
       - name: Checkout
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
@@ -78,15 +78,28 @@ jobs:
           pnpm rebuild better-sqlite3 esbuild
           pnpm run toolchain:check:native
           pnpm --filter "./packages/*" run build
-          mkdir -p artifacts/npm artifacts/provenance
+          mkdir -p artifacts/npm
           node scripts/pack-npm-artifacts.mjs artifacts/npm
           gh api "repos/${GITHUB_REPOSITORY}/dependency-graph/sbom" --jq ".sbom" > artifacts/sbom.spdx.json
           sha256sum artifacts/npm/*.tgz artifacts/sbom.spdx.json > artifacts/SHA256SUMS.txt
+          node scripts/verify-npm-artifacts.mjs \
+            --artifacts-dir artifacts/npm \
+            --checksums artifacts/SHA256SUMS.txt \
+            --output artifacts/npm-release-manifest.json
+          sha256sum artifacts/npm-release-manifest.json >> artifacts/SHA256SUMS.txt
+          node scripts/smoke-npm-packages.mjs \
+            --source tarballs \
+            --artifacts-dir artifacts/npm \
+            --manifest artifacts/npm-release-manifest.json
 
-      - name: Attest npm package artifacts
+      - name: Attest release artifacts
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
         with:
-          subject-path: "artifacts/npm/*.tgz"
+          subject-path: |
+            artifacts/npm/*.tgz
+            artifacts/npm-release-manifest.json
+            artifacts/sbom.spdx.json
+            artifacts/SHA256SUMS.txt
 
       - name: Upload release assets
         shell: bash
@@ -131,7 +144,12 @@ jobs:
 
           while IFS= read -r release_tag; do
             echo "Uploading release assets to ${release_tag}"
-            gh release upload "${release_tag}" artifacts/npm/*.tgz artifacts/sbom.spdx.json artifacts/SHA256SUMS.txt --clobber
+            gh release upload "${release_tag}" \
+              artifacts/npm/*.tgz \
+              artifacts/npm-release-manifest.json \
+              artifacts/sbom.spdx.json \
+              artifacts/SHA256SUMS.txt \
+              --clobber
           done < "${RUNNER_TEMP}/release-tags.txt"
 
       - name: Post-release state

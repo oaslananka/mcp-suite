@@ -140,8 +140,9 @@ More setup and workflow guidance lives in [docs/development.md](./docs/developme
 ## Release Policy
 
 - release-please manifest mode owns version bumps, changelogs, tags, and GitHub releases.
-- GitHub Actions builds npm package tarballs, SBOM, checksums, and attestations from clean checkout state.
-- Production npm publishing is separate, environment-protected, and publishes only GitHub Release package tarballs.
+- GitHub Actions builds npm package tarballs, a machine-readable release manifest, SBOM, checksums, and attestations from clean checkout state.
+- Production npm publishing is separate, environment-protected, and uses npm trusted publishing/OIDC after checksum, attestation, package-content, and clean-install verification.
+- Partial npm publication is resumable: identical immutable versions are skipped, missing versions publish in dependency order, and integrity conflicts fail closed.
 - Docs-only, internal-only, and CI-only changes do not publish to npm or update registry metadata.
 
 ## Contributing
