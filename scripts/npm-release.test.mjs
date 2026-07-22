@@ -9,6 +9,7 @@ import test from "node:test";
 import {
   npmCommand,
   registryPublicationPlan,
+  SYSTEM_TAR,
   resolveNpmCliPath,
   sortPackages,
   verifyNpmArtifacts,
@@ -252,7 +253,7 @@ async function createTarball(root, artifactsDir, manifest, files) {
 
   const filename = `${manifest.name.slice(1).replace("/", "-")}-${manifest.version}.tgz`;
   const target = path.join(artifactsDir, filename);
-  execFileSync("tar", ["-czf", target, "package"], { cwd: staging });
+  execFileSync(SYSTEM_TAR, ["-czf", target, "package"], { cwd: staging });
   await rm(staging, { recursive: true, force: true });
   return target;
 }

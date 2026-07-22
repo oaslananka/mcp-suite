@@ -7,6 +7,12 @@ import process from "node:process";
 
 export const NPM_REGISTRY = "https://registry.npmjs.org/";
 export const RELEASE_REPOSITORY = "https://github.com/oaslananka/mcp-suite.git";
+export const SYSTEM_TAR =
+  process.platform === "win32" ? "C:/Windows/System32/tar.exe" : "/usr/bin/tar";
+
+function compareAlphabetically(left, right) {
+  return left.localeCompare(right, "en");
+}
 
 export function resolveNpmCliPath(execPath = process.execPath) {
   const adjacent = path.resolve(path.dirname(execPath), "../lib/node_modules/npm/bin/npm-cli.js");
@@ -23,10 +29,7 @@ export function resolveNpmCliPath(execPath = process.execPath) {
 }
 
 export function npmCommand(args, options = {}) {
-  return runCommand(process.execPath, [resolveNpmCliPath(), ...args], {
-    ...options,
-    env: withActiveNodePath(options.env ?? process.env),
-  });
+  return runCommand(process.execPath, [resolveNpmCliPath(), ...args], options);
 }
 
 export async function loadExpectedPackages(root = process.cwd()) {
@@ -72,7 +75,7 @@ export function sortPackages(packages) {
     }
 
     temporary.add(pkg.name);
-    for (const dependencyName of Object.keys(pkg.dependencies ?? {}).sort()) {
+    for (const dependencyName of Object.keys(pkg.dependencies ?? {}).sort(compareAlphabetically)) {
       const dependency = byName.get(dependencyName);
       if (dependency) {
         visit(dependency);
@@ -83,7 +86,9 @@ export function sortPackages(packages) {
     ordered.push(pkg);
   }
 
-  for (const pkg of [...packages].sort((left, right) => left.name.localeCompare(right.name))) {
+  for (const pkg of [...packages].sort((left, right) =>
+    compareAlphabetically(left.name, right.name)
+  )) {
     visit(pkg);
   }
 
@@ -106,7 +111,7 @@ export async function verifyNpmArtifacts({
   const tarballs = entries
     .filter((entry) => entry.isFile() && entry.name.endsWith(".tgz"))
     .map((entry) => path.join(artifactsDir, entry.name))
-    .sort((left, right) => left.localeCompare(right));
+    .sort(compareAlphabetically);
   const artifactsByName = new Map();
 
   for (const tarballPath of tarballs) {
@@ -133,16 +138,14 @@ export async function verifyNpmArtifacts({
       sha256,
       shasum: await digestFile(tarballPath, "sha1", "hex"),
       integrity: `sha512-${await digestFile(tarballPath, "sha512", "base64")}`,
-      bins: Object.keys(artifact.packageJson.bin ?? {}).sort(),
+      bins: Object.keys(artifact.packageJson.bin ?? {}).sort(compareAlphabetically),
       dependencies: artifact.packageJson.dependencies ?? {},
     });
   }
 
   const missing = expectedPackages.filter((pkg) => !artifactsByName.has(pkg.name));
   if (missing.length > 0) {
-    throw new Error(
-      `Missing npm artifacts: ${missing.map((pkg) => `${pkg.name}@${pkg.version}`).join(", ")}`
-    );
+    throw new Error(`Missing npm artifacts: ${missing.map(formatPackageSpec).join(", ")}`);
   }
 
   const unexpected = [...artifactsByName.keys()].filter(
@@ -162,7 +165,7 @@ export async function verifyNpmArtifacts({
 }
 
 export async function inspectTarball(tarballPath) {
-  const listResult = spawnSync("tar", ["-tzf", tarballPath], {
+  const listResult = spawnSync(SYSTEM_TAR, ["-tzf", tarballPath], {
     encoding: "utf8",
     windowsHide: true,
   });
@@ -179,7 +182,7 @@ export async function inspectTarball(tarballPath) {
     throw new Error(`${path.basename(tarballPath)} contains too many archive entries`);
   }
 
-  const verboseResult = spawnSync("tar", ["-tvzf", tarballPath], {
+  const verboseResult = spawnSync(SYSTEM_TAR, ["-tvzf", tarballPath], {
     encoding: "utf8",
     windowsHide: true,
   });
@@ -203,7 +206,7 @@ export async function inspectTarball(tarballPath) {
     }
   }
 
-  const manifestResult = spawnSync("tar", ["-xOzf", tarballPath, "package/package.json"], {
+  const manifestResult = spawnSync(SYSTEM_TAR, ["-xOzf", tarballPath, "package/package.json"], {
     encoding: "utf8",
     windowsHide: true,
   });
@@ -306,20 +309,36 @@ function matchesPublishedIntegrity(published, artifact) {
 
 function validateArtifact(artifact, expectedPackages) {
   const { packageJson, entries, tarballPath } = artifact;
+  const expected = expectedPackageForArtifact(packageJson, expectedPackages, tarballPath);
+  validateArtifactVersion(packageJson, expected);
+  validatePublishMetadata(packageJson);
+  validateBuiltOutput(packageJson, entries);
+  validateInternalDependencies(packageJson, expectedPackages);
+  validateDeclaredEntrypoints(packageJson, entries);
+  validateCliShebangs(packageJson, tarballPath);
+}
+
+function expectedPackageForArtifact(packageJson, expectedPackages, tarballPath) {
   const expected = expectedPackages.find((pkg) => pkg.name === packageJson.name);
   if (!expected) {
     throw new Error(
       `${path.basename(tarballPath)} declares unexpected package ${packageJson.name}`
     );
   }
-  if (
-    packageJson.version !== expected.version ||
-    packageJson.version !== expected.manifestVersion
-  ) {
+  return expected;
+}
+
+function validateArtifactVersion(packageJson, expected) {
+  const matchesPackage = packageJson.version === expected.version;
+  const matchesManifest = packageJson.version === expected.manifestVersion;
+  if (!matchesPackage || !matchesManifest) {
     throw new Error(
       `${packageJson.name}: artifact version ${packageJson.version} does not match package and release manifest ${expected.version}`
     );
   }
+}
+
+function validatePublishMetadata(packageJson) {
   if (packageJson.publishConfig?.registry !== NPM_REGISTRY) {
     throw new Error(`${packageJson.name}: artifact registry must be ${NPM_REGISTRY}`);
   }
@@ -329,10 +348,15 @@ function validateArtifact(artifact, expectedPackages) {
   if (repositoryUrl(packageJson.repository) !== RELEASE_REPOSITORY) {
     throw new Error(`${packageJson.name}: repository.url must match ${RELEASE_REPOSITORY}`);
   }
+}
+
+function validateBuiltOutput(packageJson, entries) {
   if (![...entries].some((entry) => entry.startsWith("dist/"))) {
     throw new Error(`${packageJson.name}: artifact does not contain built dist files`);
   }
+}
 
+function validateInternalDependencies(packageJson, expectedPackages) {
   for (const [dependencyName, dependencyVersion] of Object.entries(
     packageJson.dependencies ?? {}
   )) {
@@ -346,7 +370,9 @@ function validateArtifact(artifact, expectedPackages) {
       );
     }
   }
+}
 
+function validateDeclaredEntrypoints(packageJson, entries) {
   const entrypoints = [
     packageJson.main,
     packageJson.module,
@@ -363,7 +389,9 @@ function validateArtifact(artifact, expectedPackages) {
       );
     }
   }
+}
 
+function validateCliShebangs(packageJson, tarballPath) {
   for (const binTarget of Object.values(packageJson.bin ?? {})) {
     const normalized = normalizePackagePath(binTarget);
     const firstLine = readTarballFile(tarballPath, `package/${normalized}`).split(/\r?\n/u, 1)[0];
@@ -411,7 +439,7 @@ function repositoryUrl(repository) {
 }
 
 function readTarballFile(tarballPath, entry) {
-  const result = spawnSync("tar", ["-xOzf", tarballPath, entry], {
+  const result = spawnSync(SYSTEM_TAR, ["-xOzf", tarballPath, entry], {
     encoding: "utf8",
     windowsHide: true,
   });
@@ -423,17 +451,55 @@ async function readChecksums(checksumsPath) {
   const content = await readFile(checksumsPath, "utf8");
   const checksums = new Map();
   for (const line of content.split(/\r?\n/u)) {
-    const match = /^([a-f0-9]{64})\s+\*?(.+)$/u.exec(line.trim());
-    if (!match) {
+    const parsed = parseChecksumLine(line);
+    if (!parsed) {
       continue;
     }
-    const filename = path.basename(match[2]);
+    const filename = path.basename(parsed.filename);
     if (checksums.has(filename)) {
       throw new Error(`Duplicate checksum entry for ${filename}`);
     }
-    checksums.set(filename, match[1]);
+    checksums.set(filename, parsed.digest);
   }
   return checksums;
+}
+
+function parseChecksumLine(line) {
+  const trimmed = line.trim();
+  const separator = trimmed.indexOf(" ");
+  if (separator < 0) {
+    return null;
+  }
+
+  const digest = trimmed.slice(0, separator);
+  if (!isLowercaseSha256(digest)) {
+    return null;
+  }
+
+  let filename = trimmed.slice(separator).trimStart();
+  if (filename.startsWith("*")) {
+    filename = filename.slice(1);
+  }
+  return filename ? { digest, filename } : null;
+}
+
+function isLowercaseSha256(value) {
+  if (value.length !== 64) {
+    return false;
+  }
+  for (const character of value) {
+    const code = character.codePointAt(0);
+    const isDigit = code >= 48 && code <= 57;
+    const isLowerHex = code >= 97 && code <= 102;
+    if (!isDigit && !isLowerHex) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function formatPackageSpec(pkg) {
+  return `${pkg.name}@${pkg.version}`;
 }
 
 async function digestFile(file, algorithm, encoding) {
@@ -449,16 +515,6 @@ function assertCommandSucceeded(result, message) {
     const details = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
     throw new Error(details ? `${message}: ${details}` : message);
   }
-}
-
-function withActiveNodePath(env) {
-  const delimiter = process.platform === "win32" ? ";" : ":";
-  const nodeBin = path.dirname(process.execPath);
-  const currentPath = env.PATH ?? env.Path ?? "";
-  return {
-    ...env,
-    PATH: [nodeBin, currentPath].filter(Boolean).join(delimiter),
-  };
 }
 
 function defaultSleep(delayMs) {
