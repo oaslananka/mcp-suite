@@ -31,6 +31,18 @@ test("Release Please uses a dedicated token so release PRs trigger required CI",
   );
 });
 
+test("Release Please-owned package changelogs are excluded from Prettier", () => {
+  const prettierIgnore = readFileSync(new URL("../.prettierignore", import.meta.url), "utf8");
+  const entries = prettierIgnore
+    .split(/\r?\n/u)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  assert.equal(entries.filter((entry) => entry === "packages/*/CHANGELOG.md").length, 1);
+  assert.doesNotMatch(prettierIgnore, /^CHANGELOG\.md$/mu);
+  assert.doesNotMatch(prettierIgnore, /^\*\*\/CHANGELOG\.md$/mu);
+});
+
 test("npm publication uses OIDC by default and isolates the one-time bootstrap token", () => {
   const publishWorkflow = readFileSync(
     new URL("../.github/workflows/publish.yml", import.meta.url),
