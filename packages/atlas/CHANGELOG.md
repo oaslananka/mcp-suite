@@ -1,5 +1,12 @@
 # @oaslananka/atlas
 
+## [1.1.0](https://github.com/oaslananka/mcp-suite/compare/atlas-v1.0.0...atlas-v1.1.0) (2026-07-22)
+
+
+### Features
+
+* **atlas:** add protocol-aware MCP readiness checks ([#48](https://github.com/oaslananka/mcp-suite/issues/48)) ([5198339](https://github.com/oaslananka/mcp-suite/commit/519833980db01a0e5c9a94a22d157068f49738b4))
+
 ## 1.0.0
 
 ### Major Changes

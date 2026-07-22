@@ -1,5 +1,12 @@
 # @oaslananka/shared
 
+## [1.1.0](https://github.com/oaslananka/mcp-suite/compare/shared-v1.0.1...shared-v1.1.0) (2026-07-22)
+
+
+### Features
+
+* **shared:** implement compliant Streamable HTTP transport ([5cd031e](https://github.com/oaslananka/mcp-suite/commit/5cd031ecfa36967b49919087aa19711550d7c96e))
+
 ## [1.0.1](https://github.com/oaslananka/mcp-suite/compare/shared-v1.0.0...shared-v1.0.1) (2026-05-26)
 
 ### Bug Fixes
