@@ -110,6 +110,23 @@ jobs:
           set -euo pipefail
           pnpm run build
 
+      - name: Verify npm package tarballs
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf test-results/npm-release
+          mkdir -p test-results/npm-release/npm
+          node scripts/pack-npm-artifacts.mjs test-results/npm-release/npm
+          sha256sum test-results/npm-release/npm/*.tgz > test-results/npm-release/SHA256SUMS.txt
+          node scripts/verify-npm-artifacts.mjs \
+            --artifacts-dir test-results/npm-release/npm \
+            --checksums test-results/npm-release/SHA256SUMS.txt \
+            --output test-results/npm-release/npm-release-manifest.json
+          node scripts/smoke-npm-packages.mjs \
+            --source tarballs \
+            --artifacts-dir test-results/npm-release/npm \
+            --manifest test-results/npm-release/npm-release-manifest.json
+
       - name: Install Playwright Chromium
         shell: bash
         run: |

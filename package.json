@@ -11,7 +11,7 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "preinstall": "node scripts/verify-toolchain.mjs --runtime",
-    "toolchain:test": "node --test scripts/codecov-reports.test.mjs scripts/smoke-prod-health.test.mjs scripts/automation-policy.test.mjs scripts/mirror-policy.test.mjs scripts/toolchain-contract.test.mjs scripts/native-module-check.test.mjs scripts/release-policy.test.mjs",
+    "toolchain:test": "node --test scripts/codecov-reports.test.mjs scripts/smoke-prod-health.test.mjs scripts/automation-policy.test.mjs scripts/mirror-policy.test.mjs scripts/toolchain-contract.test.mjs scripts/native-module-check.test.mjs scripts/release-policy.test.mjs scripts/npm-release.test.mjs",
     "toolchain:check:runtime": "node scripts/verify-toolchain.mjs --runtime",
     "toolchain:check:repository": "node scripts/verify-toolchain.mjs --repository",
     "toolchain:check:native": "node scripts/verify-native-modules.mjs",
@@ -49,7 +49,9 @@
     "clean": "turbo run clean && rimraf node_modules \"packages/*/node_modules\" \"packages/*/dist\" \"apps/*/node_modules\" \"apps/*/dist\" coverage test-results docs/api",
     "prepare": "husky",
     "precommit": "lint-staged && pnpm run lint",
-    "size": "node scripts/check-size-budgets.mjs"
+    "size": "node scripts/check-size-budgets.mjs",
+    "release:verify-artifacts": "node scripts/verify-npm-artifacts.mjs",
+    "release:smoke-packages": "node scripts/smoke-npm-packages.mjs"
   },
   "lint-staged": {
     "*.{ts,tsx,json,md,yml,yaml}": [
@@ -58,7 +60,7 @@
   },
   "pnpm": {
     "overrides": {
-      "@modelcontextprotocol/sdk>@hono/node-server": "2.0.5",
+      "@modelcontextprotocol/sdk>@hono/node-server": "^2.0.10",
       "@tootallnate/once": "^3.0.1",
       "@xmldom/xmldom": "^0.8.13",
       "brace-expansion": "^5.0.7",

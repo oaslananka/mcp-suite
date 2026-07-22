@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  "@modelcontextprotocol/sdk>@hono/node-server": 2.0.5
+  "@modelcontextprotocol/sdk>@hono/node-server": ^2.0.10
   "@tootallnate/once": ^3.0.1
   "@xmldom/xmldom": ^0.8.13
   brace-expansion: ^5.0.7
@@ -1324,10 +1324,10 @@ packages:
         integrity: sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg==,
       }
 
-  "@hono/node-server@2.0.5":
+  "@hono/node-server@2.0.11":
     resolution:
       {
-        integrity: sha512-yQFvDmyDo3y6rEOJZDUYPJ49DIKTPpIk4kGvm40xx4Ejne0Pu9a1+exxPN+C1UppWK/WGZX9F++/Xs231tE86g==,
+        integrity: sha512-bjD221KPLoJTWUwso1J6fGKiTXEUFedG/s0visavY4zakFPkeGURMRNly+FhBHs7T8Dz4qHaZIMX9ZoJHSJtKA==,
       }
     engines: { node: ">=20" }
     peerDependencies:
@@ -7929,7 +7929,7 @@ snapshots:
       "@shikijs/types": 3.23.0
       "@shikijs/vscode-textmate": 10.0.2
 
-  "@hono/node-server@2.0.5(hono@4.12.31)":
+  "@hono/node-server@2.0.11(hono@4.12.31)":
     dependencies:
       hono: 4.12.31
 
@@ -7991,7 +7991,7 @@ snapshots:
 
   "@modelcontextprotocol/sdk@1.29.0(zod@3.25.76)":
     dependencies:
-      "@hono/node-server": 2.0.5(hono@4.12.31)
+      "@hono/node-server": 2.0.11(hono@4.12.31)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5

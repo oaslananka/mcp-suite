@@ -4,18 +4,19 @@
 
 The repository uses one primary gate per concern so overlapping scanners do not create duplicate findings or unnecessary merge latency.
 
-| Concern                     | Primary control                                    | Repository policy                                                                 |
-| --------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Dependency updates          | Renovate                                           | Dependabot alerts remain useful; duplicate Dependabot version-update PRs stay off |
-| SAST                        | CodeQL                                             | Third-party SAST bots are advisory unless a dedicated rule is intentionally added |
-| Secret prevention           | GitHub push protection                             | Gitleaks remains the deterministic workflow/diff backstop                         |
-| Container vulnerabilities   | Trivy                                              | Fixable `HIGH`/`CRITICAL` findings block container validation                     |
-| Coverage and test analytics | Codecov                                            | Project/patch coverage and failed-test analytics                                  |
-| Code quality                | ESLint, TypeScript, and SonarQube Cloud            | Native checks block; Sonar manages new-code quality and technical debt            |
-| Workflow security           | actionlint and zizmor                              | Gitleaks runs in the same workflow-security job                                   |
-| Merge automation            | GitHub ruleset and native auto-merge               | Squash-only; external merge orchestration is not installed                        |
-| Release automation          | release-please                                     | Independent component versions and tags                                           |
-| OCI supply chain            | SHA pinning, OIDC, Cosign, and GitHub attestations | No long-lived signing or registry credentials                                     |
+| Concern                     | Primary control                                           | Repository policy                                                                     |
+| --------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Dependency updates          | Renovate                                                  | Dependabot alerts remain useful; duplicate Dependabot version-update PRs stay off     |
+| SAST                        | CodeQL                                                    | Third-party SAST bots are advisory unless a dedicated rule is intentionally added     |
+| Secret prevention           | GitHub push protection                                    | Gitleaks remains the deterministic workflow/diff backstop                             |
+| Container vulnerabilities   | Trivy                                                     | Fixable `HIGH`/`CRITICAL` findings block container validation                         |
+| Coverage and test analytics | Codecov                                                   | Project/patch coverage and failed-test analytics                                      |
+| Code quality                | ESLint, TypeScript, and SonarQube Cloud                   | Native checks block; Sonar manages new-code quality and technical debt                |
+| Workflow security           | actionlint and zizmor                                     | Gitleaks runs in the same workflow-security job                                       |
+| Merge automation            | GitHub ruleset and native auto-merge                      | Squash-only; external merge orchestration is not installed                            |
+| Release automation          | release-please                                            | Independent component versions and tags                                               |
+| OCI supply chain            | SHA pinning, OIDC, Cosign, and GitHub attestations        | No long-lived signing or registry credentials                                         |
+| npm supply chain            | release-please, OIDC trusted publishing, and attestations | One-time bootstrap token only; checksums, clean installs, and signatures are verified |
 
 ## Recommended Repository Settings
 
@@ -46,6 +47,8 @@ Use GitHub Environment secrets or the configured secret provider integration. Pr
 Expected environment names:
 
 - `npm-production`
+
+The npm environment should require manual approval and is the exact environment recorded in each package's npm trusted-publisher configuration. Normal publication uses GitHub OIDC and has no npm token secret. `NPM_BOOTSTRAP_TOKEN` is allowed only for the first package creation, must be a short-lived granular token, and must be deleted and revoked immediately after all seven trusted publishers are configured. `NPM_TOKEN` is not a supported repository secret.
 
 Expected secret names are tied to their matching surface only. Do not reuse package-registry tokens for MCP Registry, Cloudflare, or marketplace publication.
 
