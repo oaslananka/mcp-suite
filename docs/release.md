@@ -25,6 +25,12 @@ MCP Suite uses release-please manifest mode. Release automation owns version bum
 - Do not upload SBOM, checksum, or GitHub attestation files to npm.
 - Do not use a permanent npm automation token after trusted publishing is configured.
 
+## Release Automation Identity
+
+Release Please must use the dedicated `RELEASE_PLEASE_TOKEN` Actions secret through the action's `token` input. The repository's default `GITHUB_TOKEN` is intentionally not used for Release Please mutations because GitHub suppresses new workflow runs for events created by that token; using the dedicated identity allows release pull request updates to receive the same required CI, security, and review-thread checks as every other pull request.
+
+The token is limited to GitHub release automation. It must not be reused for npm publication, copied into command output, or exposed as an environment variable. npm publishing remains a separate manual workflow protected by the `npm-production` environment.
+
 ## Validation
 
 ```bash
