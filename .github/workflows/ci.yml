@@ -27,6 +27,7 @@ jobs:
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Set up toolchain
         uses: ./.github/actions/setup-toolchain
@@ -78,6 +79,14 @@ jobs:
         run: |
           set -euo pipefail
           pnpm run toolchain:test:coverage
+
+      - name: Enforce patch coverage
+        shell: bash
+        env:
+          PATCH_COVERAGE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          pnpm run patch:coverage -- --base "$PATCH_COVERAGE_BASE" --target 80
 
       - name: Discover Codecov reports
         id: codecov-coverage-reports

@@ -83,3 +83,15 @@ test("Codecov includes the npm release trust boundary and CI enforces its covera
   assert.match(packageJson.scripts["toolchain:test:coverage"], /--lines 90/);
   assert.match(packageJson.scripts["toolchain:test:coverage"], /--branches 80/);
 });
+
+test("required CI enforces deterministic patch coverage before external reporting", () => {
+  const ciWorkflow = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+  const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+
+  assert.match(ciWorkflow, /fetch-depth: 0/);
+  assert.match(ciWorkflow, /name: Enforce patch coverage/);
+  assert.match(ciWorkflow, /github\.event\.pull_request\.base\.sha \|\| github\.event\.before/);
+  assert.match(ciWorkflow, /pnpm run patch:coverage[\s\S]*--target 80/);
+  assert.equal(packageJson.scripts["patch:coverage"], "node scripts/patch-coverage.mjs");
+  assert.match(packageJson.scripts["toolchain:test"], /patch-coverage\.test\.mjs/);
+});
