@@ -22,7 +22,7 @@ export class Transformer {
       if (template[i] === "{" && template[i + 1] === "{") {
         const closeIndex = template.indexOf("}}", i + 2);
         if (closeIndex === -1) {
-          continue;
+          break;
         }
 
         const expression = template.substring(i + 2, closeIndex).trim();
