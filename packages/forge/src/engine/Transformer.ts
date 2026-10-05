@@ -17,8 +17,9 @@ export class Transformer {
     let resultObject: unknown = null;
     let matchCount = 0;
     let lastIndex = 0;
+    let i = 0;
 
-    for (let i = 0; i < template.length; i++) {
+    while (i < template.length) {
       if (template[i] === "{" && template[i + 1] === "{") {
         const closeIndex = template.indexOf("}}", i + 2);
         if (closeIndex === -1) {
@@ -34,8 +35,10 @@ export class Transformer {
 
         resultString += template.substring(lastIndex, i) + String(val);
         lastIndex = closeIndex + 2;
-        i = closeIndex + 1;
+        i = closeIndex + 2;
         matchCount++;
+      } else {
+        i++;
       }
     }
 
