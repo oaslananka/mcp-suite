@@ -103,27 +103,29 @@ export class ApiServer {
       res.json({ pipeline });
     });
 
-    api.post("/pipelines/:id/run", async (req: Request, res: Response) => {
-      try {
-        const pipelineId = req.params["id"];
-        if (!pipelineId) {
-          res.status(400).json({ error: "Missing pipeline ID" });
-          return;
-        }
+    api.post("/pipelines/:id/run", (req: Request, res: Response) => {
+      void (async () => {
+        try {
+          const pipelineId = req.params["id"];
+          if (!pipelineId) {
+            res.status(400).json({ error: "Missing pipeline ID" });
+            return;
+          }
 
-        const body = isUnknownRecord(req.body) ? req.body : {};
-        const vars = isStringRecord(body["vars"]) ? body["vars"] : {};
-        const pipeline = this.store.getPipeline(pipelineId);
-        if (!pipeline) {
-          res.status(404).json({ error: "Pipeline not found" });
-          return;
-        }
+          const body = isUnknownRecord(req.body) ? req.body : {};
+          const vars = isStringRecord(body["vars"]) ? body["vars"] : {};
+          const pipeline = this.store.getPipeline(pipelineId);
+          if (!pipeline) {
+            res.status(404).json({ error: "Pipeline not found" });
+            return;
+          }
 
-        const run = await this.engine.run(pipeline, vars);
-        res.json(run);
-      } catch (error: unknown) {
-        res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
-      }
+          const run = await this.engine.run(pipeline, vars);
+          res.json(run);
+        } catch (error: unknown) {
+          res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+        }
+      })();
     });
 
     api.get("/runs", (req: Request, res: Response) => {

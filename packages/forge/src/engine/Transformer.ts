@@ -60,10 +60,10 @@ export class Transformer {
       if (expr.includes("|")) {
         const parts = expr.split("|").map((p) => p.trim());
         if (parts.length === 2) {
-          const val = parts[0]!;
-          const func = parts[1]!;
-          const funcName = func.split("(")[0];
-          const funcArgs = func.includes("(") ? func.split("(")[1]!.replace(")", "") : "";
+          const val = parts[0] ?? "";
+          const func = parts[1] ?? "";
+          const funcName = func.split("(")[0] ?? "";
+          const funcArgs = func.includes("(") ? (func.split("(")[1] ?? "").replace(")", "") : "";
 
           if (funcArgs) {
             standardExpr = `${funcName}(${val}, ${funcArgs})`;
