@@ -88,7 +88,7 @@ export class ApiServer {
     });
 
     api.get("/pipelines/:id", (req: Request, res: Response) => {
-      const pipelineId = req.params["id"];
+      const pipelineId = Array.isArray(req.params["id"]) ? req.params["id"][0] : req.params["id"];
       if (!pipelineId) {
         res.status(400).json({ error: "Missing pipeline ID" });
         return;
@@ -106,7 +106,9 @@ export class ApiServer {
     api.post("/pipelines/:id/run", (req: Request, res: Response) => {
       void (async () => {
         try {
-          const pipelineId = req.params["id"];
+          const pipelineId = Array.isArray(req.params["id"])
+            ? req.params["id"][0]
+            : req.params["id"];
           if (!pipelineId) {
             res.status(400).json({ error: "Missing pipeline ID" });
             return;
@@ -136,7 +138,7 @@ export class ApiServer {
     });
 
     api.get("/runs/:id", (req: Request, res: Response) => {
-      const id = req.params["id"];
+      const id = Array.isArray(req.params["id"]) ? req.params["id"][0] : req.params["id"];
       if (!id) {
         res.status(400).json({ error: "Missing ID" });
         return;
@@ -155,7 +157,7 @@ export class ApiServer {
     const uiPath = path.join(process.cwd(), "dist", "ui");
     this.app.use(express.static(uiPath));
 
-    this.app.get("*", this.enforceRateLimit.bind(this), (_req, res) => {
+    this.app.use(this.enforceRateLimit.bind(this), (_req: Request, res: Response) => {
       res.sendFile(path.join(uiPath, "index.html"), (err) => {
         if (err) {
           res.status(404).send("UI not built yet");

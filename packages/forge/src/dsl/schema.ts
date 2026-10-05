@@ -75,7 +75,7 @@ export type StepConfig =
       output_as?: string | undefined;
     };
 
-export const StepSchema: z.ZodType<StepConfig> = z.lazy(() =>
+export const StepSchema: z.ZodType<StepConfig> = z.lazy((): z.ZodType<StepConfig> =>
   z.union([
     // Tool call step
     z.object({
@@ -84,7 +84,7 @@ export const StepSchema: z.ZodType<StepConfig> = z.lazy(() =>
       type: z.literal("tool").optional(),
       server: z.string(),
       tool: z.string(),
-      input: z.record(z.unknown()),
+      input: z.record(z.string(), z.unknown()),
       output_as: z.string().optional(),
       retry: RetrySchema.optional(),
       timeout: z.string().optional(),
@@ -104,7 +104,7 @@ export const StepSchema: z.ZodType<StepConfig> = z.lazy(() =>
       id: z.string(),
       name: z.string().optional(),
       type: z.literal("parallel"),
-      steps: z.array(z.lazy(() => StepSchema)),
+      steps: z.array(z.lazy(() => StepSchema) as z.ZodType<StepConfig>),
       output_as: z.string().optional(),
     }),
     // Loop step
@@ -114,7 +114,7 @@ export const StepSchema: z.ZodType<StepConfig> = z.lazy(() =>
       type: z.literal("loop"),
       over: z.string(),
       as: z.string(),
-      steps: z.array(z.lazy(() => StepSchema)),
+      steps: z.array(z.lazy(() => StepSchema) as z.ZodType<StepConfig>),
       output_as: z.string().optional(),
     }),
     // Delay step
@@ -132,7 +132,7 @@ export const StepSchema: z.ZodType<StepConfig> = z.lazy(() =>
       type: z.literal("http"),
       url: z.string(),
       method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
-      headers: z.record(z.string()).optional(),
+      headers: z.record(z.string(), z.string()).optional(),
       body: z.unknown().optional(),
       output_as: z.string().optional(),
     }),
@@ -171,14 +171,16 @@ export const PipelineConfigSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
   version: z.string().default("1.0.0"),
-  servers: z.record(ServerConfigSchema).optional(),
+  servers: z.record(z.string(), ServerConfigSchema).optional() as z.ZodOptional<
+    z.ZodRecord<z.ZodString, z.ZodType<ServerConfig>>
+  >,
   triggers: z.array(TriggerSchema).optional(),
   steps: z.array(StepSchema),
   on_error: z
     .object({
       server: z.string(),
       tool: z.string(),
-      input: z.record(z.unknown()),
+      input: z.record(z.string(), z.unknown()),
     })
     .optional(),
 });

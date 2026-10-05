@@ -3,6 +3,8 @@
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "composite": false
+    "composite": false,
+    "ignoreDeprecations": "6.0",
+    "rootDir": "."
   }
 }
