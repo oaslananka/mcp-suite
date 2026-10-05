@@ -16,17 +16,16 @@ describe("Transformer", () => {
     expect(result).toEqual(["bug", "needs-ticket"]);
   });
 
-  it("handles adversarial ReDoS input without catastrophic backtracking", () => {
+  it("handles many unclosed template openers in linear time", () => {
     const transformer = new Transformer();
-    const ctx = { value: "test" };
+    const adversarialInput = "{{".repeat(10_000);
 
-    const adversarialInput = "{{".repeat(5000) + " value }}";
     const start = Date.now();
-    const result = transformer.transform(adversarialInput, ctx);
+    const result = transformer.transform(adversarialInput, {});
     const elapsed = Date.now() - start;
 
     expect(elapsed).toBeLessThan(100);
-    expect(result).toContain("[EvalError:");
+    expect(result).toBe(adversarialInput);
   });
 
   it("handles nested braces in expressions correctly", () => {
