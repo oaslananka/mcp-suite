@@ -153,7 +153,7 @@ export class ApiServer {
     const uiPath = path.join(process.cwd(), "dist", "ui");
     this.app.use(express.static(uiPath));
 
-    this.app.get("*", (_req, res) => {
+    this.app.get("*", this.enforceRateLimit.bind(this), (_req, res) => {
       res.sendFile(path.join(uiPath, "index.html"), (err) => {
         if (err) {
           res.status(404).send("UI not built yet");

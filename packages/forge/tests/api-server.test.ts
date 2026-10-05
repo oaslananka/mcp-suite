@@ -151,4 +151,17 @@ describe("ApiServer", () => {
       expect(requestLog.has("stale-client")).toBe(false);
     });
   });
+
+  it("rate limits the catch-all UI route", async () => {
+    await withServer(async (baseUrl) => {
+      for (let i = 0; i < 50; i++) {
+        const response = await fetch(`${baseUrl}/`, { headers: AUTH_HEADERS });
+        expect(response.status).toBe(404);
+      }
+      const limited = await fetch(`${baseUrl}/`, { headers: AUTH_HEADERS });
+      expect(limited.status).toBe(429);
+      const body = await limited.json();
+      expect(body.error).toBe("Rate limit exceeded");
+    });
+  });
 });
