@@ -71,7 +71,9 @@ export class RateLimiter {
     if (missingTokens === 0) {
       return 0;
     }
-
+    if (this.refillRatePerSecond <= 0) {
+      return 86_400_000;
+    }
     return Math.ceil((missingTokens / this.refillRatePerSecond) * 1000);
   }
 }

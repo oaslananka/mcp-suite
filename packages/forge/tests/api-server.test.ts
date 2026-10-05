@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { RunStore } from "../src/runtime/RunStore.js";
 import { ApiServer } from "../src/server/ApiServer.js";
 
-async function withServer<T>(fn: (baseUrl: string, server: ApiServer) => Promise<T>): Promise<T> {
+async function withServer<T>(options: {
+  rateLimit?: { windowMs: number; max: number };
+  uiRateLimit?: { capacity: number; refillRatePerSecond: number };
+  fn: (baseUrl: string, server: ApiServer) => Promise<T>;
+}): Promise<T> {
   const engine = {
     run: vi.fn().mockImplementation(async (pipeline, vars) => ({
       id: "run-1",
@@ -16,7 +20,8 @@ async function withServer<T>(fn: (baseUrl: string, server: ApiServer) => Promise
     allowedOrigins: ["https://forge.example.com"],
     authToken: "test-token",
     jsonBodyLimit: "128b",
-    rateLimit: { windowMs: 60_000, max: 50 },
+    rateLimit: options.rateLimit ?? { windowMs: 60_000, max: 50 },
+    uiRateLimit: options.uiRateLimit ?? { capacity: 10, refillRatePerSecond: 1 },
   });
   await server.listen(0);
 
@@ -28,7 +33,7 @@ async function withServer<T>(fn: (baseUrl: string, server: ApiServer) => Promise
   }
 
   try {
-    return await fn(`http://127.0.0.1:${address.port}`, server);
+    return await options.fn(`http://127.0.0.1:${address.port}`, server);
   } finally {
     await server.close();
     store.close();
@@ -53,115 +58,202 @@ describe("ApiServer", () => {
   });
 
   it("persists pipelines and runs the stored configuration", async () => {
-    await withServer(async (baseUrl) => {
-      const health = await fetch(`${baseUrl}/health`).then((response) => response.json());
-      const pipeline = {
-        name: "deploy",
-        version: "1.0.0",
-        steps: [{ id: "announce", type: "log", message: "Deploying" }],
-      };
-      const saved = await fetch(`${baseUrl}/api/pipelines`, {
-        method: "POST",
-        headers: jsonHeaders(),
-        body: JSON.stringify(pipeline),
-      }).then((response) => response.json());
-      const pipelines = await fetch(`${baseUrl}/api/pipelines`, { headers: AUTH_HEADERS }).then(
-        (response) => response.json()
-      );
-      const pipelineDetail = await fetch(`${baseUrl}/api/pipelines/deploy`, {
-        headers: AUTH_HEADERS,
-      }).then((response) => response.json());
-      const triggerRun = await fetch(`${baseUrl}/api/pipelines/deploy/run`, {
-        method: "POST",
-        headers: jsonHeaders(),
-        body: JSON.stringify({ vars: { region: "eu-west-1" } }),
-      }).then((response) => response.json());
-      const missingRun = await fetch(`${baseUrl}/api/pipelines/missing/run`, {
-        method: "POST",
-        headers: jsonHeaders(),
-        body: JSON.stringify({ vars: {} }),
-      });
+    await withServer({
+      fn: async (baseUrl) => {
+        const health = await fetch(`${baseUrl}/health`).then((response) => response.json());
+        const pipeline = {
+          name: "deploy",
+          version: "1.0.0",
+          steps: [{ id: "announce", type: "log", message: "Deploying" }],
+        };
+        const saved = await fetch(`${baseUrl}/api/pipelines`, {
+          method: "POST",
+          headers: jsonHeaders(),
+          body: JSON.stringify(pipeline),
+        }).then((response) => response.json());
+        const pipelines = await fetch(`${baseUrl}/api/pipelines`, { headers: AUTH_HEADERS }).then(
+          (response) => response.json()
+        );
+        const pipelineDetail = await fetch(`${baseUrl}/api/pipelines/deploy`, {
+          headers: AUTH_HEADERS,
+        }).then((response) => response.json());
+        const triggerRun = await fetch(`${baseUrl}/api/pipelines/deploy/run`, {
+          method: "POST",
+          headers: jsonHeaders(),
+          body: JSON.stringify({ vars: { region: "eu-west-1" } }),
+        }).then((response) => response.json());
+        const missingRun = await fetch(`${baseUrl}/api/pipelines/missing/run`, {
+          method: "POST",
+          headers: jsonHeaders(),
+          body: JSON.stringify({ vars: {} }),
+        });
 
-      expect(health).toEqual({ status: "ok" });
-      expect(saved.pipeline).toMatchObject({ name: "deploy", steps: [{ id: "announce" }] });
-      expect(pipelines.pipelines).toEqual([expect.objectContaining({ name: "deploy" })]);
-      expect(pipelineDetail.pipeline).toMatchObject({ name: "deploy", version: "1.0.0" });
-      expect(triggerRun).toMatchObject({
-        pipelineId: "deploy",
-        status: "success",
-        vars: { region: "eu-west-1" },
-      });
-      expect(missingRun.status).toBe(404);
+        expect(health).toEqual({ status: "ok" });
+        expect(saved.pipeline).toMatchObject({ name: "deploy", steps: [{ id: "announce" }] });
+        expect(pipelines.pipelines).toEqual([expect.objectContaining({ name: "deploy" })]);
+        expect(pipelineDetail.pipeline).toMatchObject({ name: "deploy", version: "1.0.0" });
+        expect(triggerRun).toMatchObject({
+          pipelineId: "deploy",
+          status: "success",
+          vars: { region: "eu-west-1" },
+        });
+        expect(missingRun.status).toBe(404);
+      },
     });
   });
 
   it("serves run history endpoints", async () => {
-    await withServer(async (baseUrl) => {
-      const runs = await fetch(`${baseUrl}/api/runs?pipelineId=deploy&limit=5`, {
-        headers: AUTH_HEADERS,
-      }).then((response) => response.json());
-      const response = await fetch(`${baseUrl}/api/runs/missing`, { headers: AUTH_HEADERS });
-      const payload = await response.json();
+    await withServer({
+      fn: async (baseUrl) => {
+        const runs = await fetch(`${baseUrl}/api/runs?pipelineId=deploy&limit=5`, {
+          headers: AUTH_HEADERS,
+        }).then((response) => response.json());
+        const response = await fetch(`${baseUrl}/api/runs/missing`, { headers: AUTH_HEADERS });
+        const payload = await response.json();
 
-      expect(runs.runs).toEqual([]);
-      expect(response.status).toBe(404);
-      expect(payload).toEqual({ error: "Not found" });
+        expect(runs.runs).toEqual([]);
+        expect(response.status).toBe(404);
+        expect(payload).toEqual({ error: "Not found" });
+      },
     });
   });
 
   it("rejects unauthorized, disallowed-origin, malformed, and oversized API requests", async () => {
-    await withServer(async (baseUrl) => {
-      const unauthorized = await fetch(`${baseUrl}/api/pipelines`);
-      const disallowedOrigin = await fetch(`${baseUrl}/api/pipelines`, {
-        headers: {
-          authorization: "Bearer test-token",
-          origin: "https://evil.example",
-        },
-      });
-      const malformed = await fetch(`${baseUrl}/api/pipelines`, {
-        method: "POST",
-        headers: jsonHeaders(),
-        body: "{",
-      });
-      const oversized = await fetch(`${baseUrl}/api/pipelines`, {
-        method: "POST",
-        headers: jsonHeaders(),
-        body: JSON.stringify({
-          name: "oversized",
-          version: "1.0.0",
-          steps: [{ id: "announce", type: "log", message: "x".repeat(200) }],
-        }),
-      });
+    await withServer({
+      fn: async (baseUrl) => {
+        const unauthorized = await fetch(`${baseUrl}/api/pipelines`);
+        const disallowedOrigin = await fetch(`${baseUrl}/api/pipelines`, {
+          headers: {
+            authorization: "Bearer test-token",
+            origin: "https://evil.example",
+          },
+        });
+        const malformed = await fetch(`${baseUrl}/api/pipelines`, {
+          method: "POST",
+          headers: jsonHeaders(),
+          body: "{",
+        });
+        const oversized = await fetch(`${baseUrl}/api/pipelines`, {
+          method: "POST",
+          headers: jsonHeaders(),
+          body: JSON.stringify({
+            name: "oversized",
+            version: "1.0.0",
+            steps: [{ id: "announce", type: "log", message: "x".repeat(200) }],
+          }),
+        });
 
-      expect(unauthorized.status).toBe(401);
-      expect(disallowedOrigin.status).toBe(403);
-      expect(malformed.status).toBe(400);
-      expect(oversized.status).toBe(413);
+        expect(unauthorized.status).toBe(401);
+        expect(disallowedOrigin.status).toBe(403);
+        expect(malformed.status).toBe(400);
+        expect(oversized.status).toBe(413);
+      },
     });
   });
 
   it("prunes stale rate-limit entries before recording new requests", async () => {
-    await withServer(async (baseUrl, server) => {
-      const requestLog = (server as unknown as { requestLog: Map<string, number[]> }).requestLog;
-      requestLog.set("stale-client", [0]);
+    await withServer({
+      fn: async (baseUrl, server) => {
+        const requestLog = (server as unknown as { requestLog: Map<string, number[]> }).requestLog;
+        requestLog.set("stale-client", [0]);
 
-      const response = await fetch(`${baseUrl}/api/pipelines`, { headers: AUTH_HEADERS });
+        const response = await fetch(`${baseUrl}/api/pipelines`, { headers: AUTH_HEADERS });
 
-      expect(response.status).toBe(200);
-      expect(requestLog.has("stale-client")).toBe(false);
+        expect(response.status).toBe(200);
+        expect(requestLog.has("stale-client")).toBe(false);
+      },
     });
   });
 
-  it("rate limits the catch-all UI route", async () => {
-    await withServer(async (baseUrl) => {
-      for (let i = 0; i < 50; i++) {
-        const response = await fetch(`${baseUrl}/`, { headers: AUTH_HEADERS });
-        expect(response.status).toBe(404);
-      }
-      const limited = await fetch(`${baseUrl}/`, { headers: AUTH_HEADERS });
-      expect(limited.status).toBe(429);
-      const body = await limited.json();
-      expect(body.error).toBe("Rate limit exceeded");
+  it("rate limits the catch-all UI route with token bucket", async () => {
+    await withServer({
+      uiRateLimit: { capacity: 5, refillRatePerSecond: 0 },
+      fn: async (baseUrl) => {
+        for (let i = 0; i < 5; i++) {
+          const response = await fetch(`${baseUrl}/`, { headers: AUTH_HEADERS });
+          expect(response.status).toBe(404);
+        }
+        const limited = await fetch(`${baseUrl}/`, { headers: AUTH_HEADERS });
+        expect(limited.status).toBe(429);
+        const body = await limited.json();
+        expect(body.error).toBe("Rate limit exceeded");
+        expect(typeof body.retryAfterMs).toBe("number");
+        expect(body.retryAfterMs).toBeGreaterThan(0);
+      },
+    });
+  });
+
+  it("allows successful UI file requests within quota", async () => {
+    await withServer({
+      uiRateLimit: { capacity: 10, refillRatePerSecond: 1 },
+      fn: async (baseUrl) => {
+        for (let i = 0; i < 10; i++) {
+          const response = await fetch(`${baseUrl}/`, { headers: AUTH_HEADERS });
+          expect(response.status).toBe(404);
+          expect(response.headers.get("X-RateLimit-Limit")).toBe("10");
+          expect(parseInt(response.headers.get("X-RateLimit-Remaining") || "0")).toBeLessThanOrEqual(10);
+        }
+      },
+    });
+  });
+
+  it("returns 429 when UI quota is exhausted", async () => {
+    await withServer({
+      uiRateLimit: { capacity: 3, refillRatePerSecond: 0 },
+      fn: async (baseUrl) => {
+        for (let i = 0; i < 3; i++) {
+          const response = await fetch(`${baseUrl}/`, { headers: AUTH_HEADERS });
+          expect(response.status).toBe(404);
+        }
+        const limited = await fetch(`${baseUrl}/`, { headers: AUTH_HEADERS });
+        expect(limited.status).toBe(429);
+        const body = await limited.json();
+        expect(body.error).toBe("Rate limit exceeded");
+        expect(limited.headers.get("Retry-After")).toBeDefined();
+      },
+    });
+  });
+
+  it("replenishes UI quota over time (expiry)", async () => {
+    await withServer({
+      uiRateLimit: { capacity: 2, refillRatePerSecond: 10 },
+      fn: async (baseUrl) => {
+        const response1 = await fetch(`${baseUrl}/`, { headers: AUTH_HEADERS });
+        expect(response1.status).toBe(404);
+        const response2 = await fetch(`${baseUrl}/`, { headers: AUTH_HEADERS });
+        expect(response2.status).toBe(404);
+        const limited = await fetch(`${baseUrl}/`, { headers: AUTH_HEADERS });
+        expect(limited.status).toBe(429);
+
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        const replenished = await fetch(`${baseUrl}/`, { headers: AUTH_HEADERS });
+        expect(replenished.status).toBe(404);
+      },
+    });
+  });
+
+  it("applies separate UI rate limit buckets per rotating Authorization header", async () => {
+    await withServer({
+      uiRateLimit: { capacity: 2, refillRatePerSecond: 0 },
+      fn: async (baseUrl) => {
+        const headers1 = { ...AUTH_HEADERS, authorization: "Bearer token-1" };
+        const headers2 = { ...AUTH_HEADERS, authorization: "Bearer token-2" };
+
+        const r1a = await fetch(`${baseUrl}/`, { headers: headers1 });
+        expect(r1a.status).toBe(404);
+        const r1b = await fetch(`${baseUrl}/`, { headers: headers1 });
+        expect(r1b.status).toBe(404);
+        const r1c = await fetch(`${baseUrl}/`, { headers: headers1 });
+        expect(r1c.status).toBe(429);
+
+        const r2a = await fetch(`${baseUrl}/`, { headers: headers2 });
+        expect(r2a.status).toBe(404);
+        const r2b = await fetch(`${baseUrl}/`, { headers: headers2 });
+        expect(r2b.status).toBe(404);
+        const r2c = await fetch(`${baseUrl}/`, { headers: headers2 });
+        expect(r2c.status).toBe(429);
+      },
     });
   });
 });
