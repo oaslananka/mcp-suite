@@ -15,7 +15,7 @@ export class Transformer {
 
   transform(template: string, context: Record<string, unknown>): unknown {
     // Find {{ expression }} and evaluate
-    const regex = /\{\{(.*?)\}\}/g;
+    const regex = /\{\{([^}]*)\}\}/g;
 
     let match;
     let lastIndex = 0;
