@@ -13,6 +13,7 @@ Fixed both `createTestServer` and `createRateLimitedServer` test fixtures to eli
 3. **Safe URL construction** - The `request` function now builds the final URL via string concatenation (`${baseUrl}${validatedPath}`) rather than passing user input to `new URL()` then `fetch()`
 
 ### Before (flagged by Codacy)
+
 ```typescript
 const request = async (path: string, options?: RequestInit): Promise<Response> => {
   validatePath(path);
@@ -22,6 +23,7 @@ const request = async (path: string, options?: RequestInit): Promise<Response> =
 ```
 
 ### After (resolves finding)
+
 ```typescript
 function validatePath(path: string): string {
   if (!path.startsWith("/")) {
@@ -40,6 +42,7 @@ const request = async (path: string, options?: RequestInit): Promise<Response> =
 ```
 
 ### Verification
+
 - ✅ `pnpm run lint` — 0 errors (23 pre-existing warnings)
 - ✅ `pnpm run typecheck` — passes
 - ✅ `pnpm run build` — passes
