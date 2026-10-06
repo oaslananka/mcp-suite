@@ -16,32 +16,30 @@ describe("Transformer", () => {
     expect(result).toEqual(["bug", "needs-ticket"]);
   });
 
-  it("supports strings containing single braces inside templates", () => {
+  it.each([
+    [
+      "direct value with single braces",
+      { message: "hello {world}" },
+      "{{ message }}",
+      "hello {world}",
+    ],
+    ["string literal with single braces", { val: "hello {world}" }, "{{ val }}", "hello {world}"],
+    [
+      "pipe expression with single braces in argument",
+      { text: "hello {world}" },
+      "{{ text | uppercase }}",
+      "HELLO {WORLD}",
+    ],
+    [
+      "multiple expressions with single braces",
+      { a: "{first}", b: "{second}" },
+      "{{ a }} and {{ b }}",
+      "{first} and {second}",
+    ],
+  ])("handles single braces in %s", (_name, ctx, template, expected) => {
     const transformer = new Transformer();
-    const ctx = { message: "hello {world}" };
-    const result = transformer.transform("{{ message }}", ctx);
-    expect(result).toBe("hello {world}");
-  });
-
-  it("supports expressions with braces in string literals", () => {
-    const transformer = new Transformer();
-    const ctx = { val: "hello {world}" };
-    const result = transformer.transform("{{ val }}", ctx);
-    expect(result).toBe("hello {world}");
-  });
-
-  it("supports pipe expressions with braces in string arguments", () => {
-    const transformer = new Transformer();
-    const ctx = { text: "hello {world}" };
-    const result = transformer.transform("{{ text | uppercase }}", ctx);
-    expect(result).toBe("HELLO {WORLD}");
-  });
-
-  it("handles multiple expressions with braces in same template", () => {
-    const transformer = new Transformer();
-    const ctx = { a: "{first}", b: "{second}" };
-    const result = transformer.transform("{{ a }} and {{ b }}", ctx);
-    expect(result).toBe("{first} and {second}");
+    const result = transformer.transform(template, ctx);
+    expect(result).toBe(expected);
   });
 
   it("handles template with only closing braces in expression", () => {
@@ -63,5 +61,27 @@ describe("Transformer", () => {
     const ctx = { empty: "" };
     const result = transformer.transform("{{ empty }}", ctx);
     expect(result).toBe("");
+  });
+
+  it("handles repeated unmatched opening delimiters without backtracking", () => {
+    const transformer = new Transformer();
+    const ctx = { val: "x" };
+    const template = "{{{{{{{{{{ val }}"; // 5 opening pairs, 1 closing
+    const result = transformer.transform(template, ctx);
+    // Last {{ before }} is the 5th pair at index 8; text before = 4 pairs = 8 '{' chars
+    expect(result).toBe("{{{{{{{{x");
+  });
+
+  it("handles large template with many unmatched opening pairs linearly", () => {
+    const transformer = new Transformer();
+    const ctx = { val: "ok" };
+    const openPairs = 500;
+    const template = "{{".repeat(openPairs) + " val }}";
+    const start = Date.now();
+    const result = transformer.transform(template, ctx);
+    const elapsed = Date.now() - start;
+    // Last {{ before }} is the 500th pair at index 998; text before = 499 pairs = 998 '{' chars
+    expect(result).toBe("{".repeat(openPairs * 2 - 2) + "ok");
+    expect(elapsed).toBeLessThan(500);
   });
 });
