@@ -6,7 +6,7 @@ MCP Suite is a pnpm-managed TypeScript monorepo. Publishable packages live in `p
 
 The repository toolchain is declared in `.tool-versions`:
 
-- Node.js `24.18.0`
+- Node.js `24.18.1`
 - pnpm `10.33.0`
 
 Published packages continue to support the documented Node 24 runtime line, but monorepo development and automation use the exact versions above so native modules and release artifacts are reproducible.
@@ -24,7 +24,7 @@ mise exec -- pnpm run toolchain:check
 mise exec -- pnpm run toolchain:check:native
 ```
 
-Corepack remains a supported alternative when Node `24.18.0` is already active:
+Corepack remains a supported alternative when Node `24.18.1` is already active:
 
 ```bash
 corepack enable
