@@ -64,8 +64,8 @@ export class ApiServer {
 
   private setupRoutes(): void {
     const api = express.Router();
-    api.use(this.authenticate.bind(this));
     api.use(this.enforceRateLimit.bind(this));
+    api.use(this.authenticate.bind(this));
 
     this.app.get("/health", (_req: Request, res: Response) => {
       res.json({ status: "ok" });
