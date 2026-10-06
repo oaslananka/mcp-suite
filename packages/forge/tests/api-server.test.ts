@@ -57,7 +57,10 @@ async function createTestServer(): Promise<TestServerFixture> {
     "/api/runs/missing",
   ]);
 
-  function validatePath(path: string): void {
+  function validatePath(path: string): string {
+    if (!path.startsWith("/")) {
+      throw new Error("Path must be a relative path starting with /");
+    }
     const url = new URL(path, baseUrl);
     if (url.hostname !== "127.0.0.1" || url.port !== String(port)) {
       throw new Error("Request hostname/port mismatch");
@@ -65,12 +68,13 @@ async function createTestServer(): Promise<TestServerFixture> {
     if (!allowedPaths.has(url.pathname)) {
       throw new Error(`Path not allowed in test fixture: ${url.pathname}`);
     }
+    return url.pathname + url.search + url.hash;
   }
 
   const request = async (path: string, options?: RequestInit): Promise<Response> => {
-    validatePath(path);
-    const url = new URL(path, baseUrl);
-    return fetch(url.toString(), {
+    const validatedPath = validatePath(path);
+    const url = `${baseUrl}${validatedPath}`;
+    return fetch(url, {
       ...options,
       redirect: "manual",
     });
@@ -143,7 +147,10 @@ async function createRateLimitedServer(max: number): Promise<TestServerFixture> 
     "/api/runs/missing",
   ]);
 
-  function validatePath(path: string): void {
+  function validatePath(path: string): string {
+    if (!path.startsWith("/")) {
+      throw new Error("Path must be a relative path starting with /");
+    }
     const url = new URL(path, baseUrl);
     if (url.hostname !== "127.0.0.1" || url.port !== String(port)) {
       throw new Error("Request hostname/port mismatch");
@@ -151,12 +158,13 @@ async function createRateLimitedServer(max: number): Promise<TestServerFixture> 
     if (!allowedPaths.has(url.pathname)) {
       throw new Error(`Path not allowed in test fixture: ${url.pathname}`);
     }
+    return url.pathname + url.search + url.hash;
   }
 
   const request = async (path: string, options?: RequestInit): Promise<Response> => {
-    validatePath(path);
-    const url = new URL(path, baseUrl);
-    return fetch(url.toString(), {
+    const validatedPath = validatePath(path);
+    const url = `${baseUrl}${validatedPath}`;
+    return fetch(url, {
       ...options,
       redirect: "manual",
     });
