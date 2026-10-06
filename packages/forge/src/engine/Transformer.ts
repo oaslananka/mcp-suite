@@ -15,7 +15,9 @@ export class Transformer {
 
   transform(template: string, context: Record<string, unknown>): unknown {
     // Find {{ expression }} and evaluate
-    const regex = /\{\{([^}]*)\}\}/g;
+    // Pattern matches content between {{ and }} allowing nested single braces but stopping at }}
+    // Uses (?:[^}]|\}(?!}))* to prevent ReDoS while supporting object literals like {{ {key: val} }}
+    const regex = /\{\{((?:[^}]|\}(?!}))*)\}\}/g;
 
     let match;
     let lastIndex = 0;

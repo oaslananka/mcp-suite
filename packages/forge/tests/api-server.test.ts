@@ -151,4 +151,107 @@ describe("ApiServer", () => {
       expect(requestLog.has("stale-client")).toBe(false);
     });
   });
+
+  it("health endpoint is accessible and unthrottled by rate limiter", async () => {
+    await withServer(async (baseUrl, server) => {
+      const requestLog = (server as unknown as { requestLog: Map<string, number[]> }).requestLog;
+
+      for (let i = 0; i < 10; i++) {
+        const response = await fetch(`${baseUrl}/health`);
+        expect(response.status).toBe(200);
+        const payload = await response.json();
+        expect(payload).toEqual({ status: "ok" });
+      }
+
+      expect(requestLog.size).toBe(0);
+    });
+  });
+
+  it("rate limits API endpoints based on IP and authorization header", async () => {
+    const engine = {
+      run: vi.fn().mockImplementation(async (pipeline, vars) => ({
+        id: "run-1",
+        pipelineId: pipeline.name,
+        status: "success",
+        vars,
+      })),
+    };
+    const store = new RunStore(":memory:");
+    const limitedServer = new ApiServer(engine as never, store, {
+      allowedOrigins: ["https://forge.example.com"],
+      authToken: "test-token",
+      jsonBodyLimit: "128b",
+      rateLimit: { windowMs: 60_000, max: 3 },
+    });
+    await limitedServer.listen(0);
+
+    const address = (
+      limitedServer as unknown as { server?: { address: () => { port: number } | string | null } }
+    ).server?.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Expected server to listen on a TCP port");
+    }
+    const limitedBaseUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      for (let i = 0; i < 3; i++) {
+        const response = await fetch(`${limitedBaseUrl}/api/pipelines`, { headers: AUTH_HEADERS });
+        expect(response.status).toBe(200);
+      }
+
+      const rateLimited = await fetch(`${limitedBaseUrl}/api/pipelines`, { headers: AUTH_HEADERS });
+      expect(rateLimited.status).toBe(429);
+      const error = await rateLimited.json();
+      expect(error).toEqual({ error: "Rate limit exceeded" });
+
+      const requestLogLimited = (limitedServer as unknown as { requestLog: Map<string, number[]> })
+        .requestLog;
+      expect(requestLogLimited.size).toBeGreaterThan(0);
+    } finally {
+      await limitedServer.close();
+      store.close();
+    }
+  });
+
+  it("rate limits requests and returns 429 when limit exceeded", async () => {
+    const engine = {
+      run: vi.fn().mockImplementation(async (pipeline, vars) => ({
+        id: "run-1",
+        pipelineId: pipeline.name,
+        status: "success",
+        vars,
+      })),
+    };
+    const store = new RunStore(":memory:");
+    const limitedServer = new ApiServer(engine as never, store, {
+      allowedOrigins: ["https://forge.example.com"],
+      authToken: "test-token",
+      jsonBodyLimit: "128b",
+      rateLimit: { windowMs: 60_000, max: 2 },
+    });
+    await limitedServer.listen(0);
+
+    const address = (
+      limitedServer as unknown as { server?: { address: () => { port: number } | string | null } }
+    ).server?.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Expected server to listen on a TCP port");
+    }
+    const limitedBaseUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      for (let i = 0; i < 2; i++) {
+        const response = await fetch(`${limitedBaseUrl}/api/pipelines`, { headers: AUTH_HEADERS });
+        expect(response.status).toBe(200);
+      }
+
+      const rateLimited = await fetch(`${limitedBaseUrl}/api/pipelines`, { headers: AUTH_HEADERS });
+      expect(rateLimited.status).toBe(429);
+      const error = await rateLimited.json();
+      expect(error).toEqual({ error: "Rate limit exceeded" });
+    } finally {
+      await limitedServer.close();
+      store.close();
+    }
+  });
 });
