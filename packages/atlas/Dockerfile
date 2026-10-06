@@ -1,4 +1,4 @@
-FROM node@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS builder
+FROM node@sha256:f70403e87646dc51b45295f4b8b70cdad0b63d2297c4c9899119b03f7af7a6b3 AS builder
 
 WORKDIR /workspace
 
@@ -28,11 +28,11 @@ RUN source="$(find /workspace/node_modules -path '*/better-sqlite3/build/Release
     mkdir -p "${target}/build/Release"; \
     cp "${source}" "${target}/build/Release/better_sqlite3.node"
 
-FROM node@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS runtime
+FROM node@sha256:f70403e87646dc51b45295f4b8b70cdad0b63d2297c4c9899119b03f7af7a6b3 AS runtime
 
 LABEL org.opencontainers.image.source="https://github.com/oaslananka/mcp-suite"
 
-RUN apk add --no-cache dumb-init procps wget && \
+RUN apk add --no-cache dumb-init procps wget openssl && \
     rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack && \
     rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/pnpm /usr/local/bin/pnpx
 WORKDIR /app
