@@ -123,8 +123,7 @@ export class KeyManager {
 
   rotate(id: string): { oldKey: VirtualKey; newKey: VirtualKey } {
     const existing = this.db.prepare("SELECT * FROM virtual_keys WHERE id = ? LIMIT 1").get(id) as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     if (!existing) {
       throw new Error(`Virtual key "${id}" not found`);
     }

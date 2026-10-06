@@ -169,8 +169,7 @@ export class ServerStore {
 
   findById(id: string): MCPServerRecord | null {
     const row = this.db.prepare("SELECT * FROM registry_servers WHERE id = ? LIMIT 1").get(id) as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     return row ? this.toRecord(row) : null;
   }
 

@@ -4,13 +4,7 @@
  */
 
 export type JSONSchemaType =
-  | "string"
-  | "number"
-  | "integer"
-  | "boolean"
-  | "object"
-  | "array"
-  | "null";
+  "string" | "number" | "integer" | "boolean" | "object" | "array" | "null";
 
 /**
  * A standard JSON Schema object.
