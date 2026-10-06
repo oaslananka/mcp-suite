@@ -64,13 +64,12 @@ export class ApiServer {
 
   private setupRoutes(): void {
     const api = express.Router();
+    api.use(this.enforceRateLimit.bind(this));
     api.use(this.authenticate.bind(this));
 
     this.app.get("/health", (_req: Request, res: Response) => {
       res.json({ status: "ok" });
     });
-
-    this.app.use(this.enforceRateLimit.bind(this));
 
     api.get("/pipelines", (_req: Request, res: Response) => {
       const pipelines = this.store.listPipelines();
