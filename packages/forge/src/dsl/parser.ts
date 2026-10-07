@@ -1,4 +1,4 @@
-import yaml from "js-yaml";
+import { load } from "js-yaml";
 import fs from "fs/promises";
 import { PipelineConfig, PipelineConfigSchema } from "./schema.js";
 
@@ -10,11 +10,11 @@ function substituteEnvVars(content: string): string {
 
 export function parsePipelineYaml(yamlString: string): PipelineConfig {
   const substituted = substituteEnvVars(yamlString);
-  const parsed = yaml.load(substituted);
+  const parsed = load(substituted);
 
   const result = PipelineConfigSchema.safeParse(parsed);
   if (!result.success) {
-    const errors = result.error.errors
+    const errors = result.error.issues
       .map((err) => `${err.path.join(".")}: ${err.message}`)
       .join("\n");
     throw new Error(`Pipeline configuration is invalid:\n${errors}`);

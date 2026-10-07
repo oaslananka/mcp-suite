@@ -7,7 +7,7 @@ import { ForgeWebSocketHub, type ForgeWebSocketOptionsInput } from "./WebSocketH
 import type { ForgeEngine } from "../engine/ForgeEngine.js";
 import { PipelineConfigSchema } from "../dsl/schema.js";
 import type { RunStore } from "../runtime/RunStore.js";
-import { logger } from "@oaslananka/shared";
+import { logger, RateLimiter } from "@oaslananka/shared";
 import path from "path";
 
 export interface ApiServerOptions {
@@ -16,6 +16,7 @@ export interface ApiServerOptions {
   authTokens?: Record<string, ForgePrincipal>;
   jsonBodyLimit?: string;
   rateLimit?: { windowMs: number; max: number };
+  uiRateLimit?: { capacity: number; refillRatePerSecond: number };
   webSocket?: ForgeWebSocketOptionsInput;
 }
 
@@ -28,6 +29,7 @@ export class ApiServer {
   private readonly webSocketOptions: ForgeWebSocketOptionsInput;
   private readonly jsonBodyLimit: string;
   private readonly rateLimit: { windowMs: number; max: number };
+  private readonly uiRateLimiter: RateLimiter;
   private readonly requestLog = new Map<string, number[]>();
 
   constructor(
@@ -47,6 +49,11 @@ export class ApiServer {
     );
     this.jsonBodyLimit = options.jsonBodyLimit ?? "100kb";
     this.rateLimit = options.rateLimit ?? { windowMs: 60_000, max: 120 };
+    const uiRateLimit = options.uiRateLimit ?? { capacity: 120, refillRatePerSecond: 2 };
+    this.uiRateLimiter = new RateLimiter({
+      capacity: uiRateLimit.capacity,
+      refillRatePerSecond: uiRateLimit.refillRatePerSecond,
+    });
     this.app = express();
     this.setupMiddleware();
     this.setupRoutes();
@@ -88,7 +95,7 @@ export class ApiServer {
     });
 
     api.get("/pipelines/:id", (req: Request, res: Response) => {
-      const pipelineId = req.params["id"];
+      const pipelineId = Array.isArray(req.params["id"]) ? req.params["id"][0] : req.params["id"];
       if (!pipelineId) {
         res.status(400).json({ error: "Missing pipeline ID" });
         return;
@@ -103,27 +110,31 @@ export class ApiServer {
       res.json({ pipeline });
     });
 
-    api.post("/pipelines/:id/run", async (req: Request, res: Response) => {
-      try {
-        const pipelineId = req.params["id"];
-        if (!pipelineId) {
-          res.status(400).json({ error: "Missing pipeline ID" });
-          return;
-        }
+    api.post("/pipelines/:id/run", (req: Request, res: Response) => {
+      void (async () => {
+        try {
+          const pipelineId = Array.isArray(req.params["id"])
+            ? req.params["id"][0]
+            : req.params["id"];
+          if (!pipelineId) {
+            res.status(400).json({ error: "Missing pipeline ID" });
+            return;
+          }
 
-        const body = isUnknownRecord(req.body) ? req.body : {};
-        const vars = isStringRecord(body["vars"]) ? body["vars"] : {};
-        const pipeline = this.store.getPipeline(pipelineId);
-        if (!pipeline) {
-          res.status(404).json({ error: "Pipeline not found" });
-          return;
-        }
+          const body = isUnknownRecord(req.body) ? req.body : {};
+          const vars = isStringRecord(body["vars"]) ? body["vars"] : {};
+          const pipeline = this.store.getPipeline(pipelineId);
+          if (!pipeline) {
+            res.status(404).json({ error: "Pipeline not found" });
+            return;
+          }
 
-        const run = await this.engine.run(pipeline, vars);
-        res.json(run);
-      } catch (error: unknown) {
-        res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
-      }
+          const run = await this.engine.run(pipeline, vars);
+          res.json(run);
+        } catch (error: unknown) {
+          res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+        }
+      })();
     });
 
     api.get("/runs", (req: Request, res: Response) => {
@@ -134,7 +145,7 @@ export class ApiServer {
     });
 
     api.get("/runs/:id", (req: Request, res: Response) => {
-      const id = req.params["id"];
+      const id = Array.isArray(req.params["id"]) ? req.params["id"][0] : req.params["id"];
       if (!id) {
         res.status(400).json({ error: "Missing ID" });
         return;
@@ -151,15 +162,17 @@ export class ApiServer {
     this.app.use("/api", api);
 
     const uiPath = path.join(process.cwd(), "dist", "ui");
-    this.app.use(express.static(uiPath));
-
-    this.app.get("*", (_req, res) => {
+    const uiRouter = express.Router();
+    uiRouter.use(this.enforceUiRateLimit.bind(this));
+    uiRouter.use(express.static(uiPath));
+    uiRouter.use((_req: Request, res: Response) => {
       res.sendFile(path.join(uiPath, "index.html"), (err) => {
         if (err) {
           res.status(404).send("UI not built yet");
         }
       });
     });
+    this.app.use(uiRouter);
 
     this.app.use(
       (err: Error & { type?: string }, _req: Request, res: Response, _next: NextFunction) => {
@@ -234,6 +247,21 @@ export class ApiServer {
 
     recent.push(now);
     this.requestLog.set(key, recent);
+    next();
+  }
+
+  private enforceUiRateLimit(req: Request, res: Response, next: NextFunction): void {
+    const key = `${req.ip ?? "unknown"}:${req.headers.authorization ?? "anonymous"}`;
+    if (!this.uiRateLimiter.consume(key)) {
+      const state = this.uiRateLimiter.peek(key);
+      res.setHeader("Retry-After", Math.ceil(state.retryAfterMs / 1000).toString());
+      res.status(429).json({ error: "Rate limit exceeded", retryAfterMs: state.retryAfterMs });
+      return;
+    }
+    const state = this.uiRateLimiter.peek(key);
+    res.setHeader("X-RateLimit-Limit", state.capacity.toString());
+    res.setHeader("X-RateLimit-Remaining", Math.floor(state.tokens).toString());
+    res.setHeader("X-RateLimit-Reset", Math.ceil((Date.now() + state.retryAfterMs) / 1000).toString());
     next();
   }
 
