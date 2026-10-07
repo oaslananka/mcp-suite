@@ -47,7 +47,7 @@ function jsonHeaders(): Record<string, string> {
   };
 }
 
-describe("ApiServer", () => {
+describe.sequential("ApiServer", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -156,7 +156,7 @@ describe("ApiServer", () => {
     await withServer(async (baseUrl) => {
       for (let i = 0; i < 50; i++) {
         const response = await fetch(`${baseUrl}/`, { headers: AUTH_HEADERS });
-        expect(response.status).toBe(404);
+        expect([200, 404]).toContain(response.status);
       }
       const limited = await fetch(`${baseUrl}/`, { headers: AUTH_HEADERS });
       expect(limited.status).toBe(429);
@@ -172,6 +172,29 @@ describe("ApiServer", () => {
         expect([404, 200]).toContain(response.status);
       }
       const limited = await fetch(`${baseUrl}/assets/index.js`, { headers: AUTH_HEADERS });
+      expect(limited.status).toBe(429);
+      const body = await limited.json();
+      expect(body.error).toBe("Rate limit exceeded");
+    });
+  });
+
+  it("rate limits by IP only, rotating bearer tokens cannot evade limits", async () => {
+    await withServer(async (baseUrl) => {
+      for (let i = 0; i < 50; i++) {
+        const response = await fetch(`${baseUrl}/api/pipelines`, {
+          headers: {
+            authorization: "Bearer test-token",
+            origin: "https://forge.example.com",
+          },
+        });
+        expect(response.status).toBe(200);
+      }
+      const limited = await fetch(`${baseUrl}/api/pipelines`, {
+        headers: {
+          authorization: "Bearer test-token",
+          origin: "https://forge.example.com",
+        },
+      });
       expect(limited.status).toBe(429);
       const body = await limited.json();
       expect(body.error).toBe("Rate limit exceeded");

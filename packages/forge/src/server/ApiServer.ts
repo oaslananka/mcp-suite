@@ -152,7 +152,9 @@ export class ApiServer {
 
     const uiPath = path.join(process.cwd(), "dist", "ui");
     const uiRouter = express.Router();
-    uiRouter.use(this.enforceRateLimit.bind(this));
+
+    const enforceUiRateLimit = this.enforceRateLimit.bind(this);
+    uiRouter.use(enforceUiRateLimit);
     uiRouter.use(express.static(uiPath));
     uiRouter.get("*", (_req, res) => {
       res.sendFile(path.join(uiPath, "index.html"), (err) => {
@@ -223,7 +225,7 @@ export class ApiServer {
   }
 
   private enforceRateLimit(req: Request, res: Response, next: NextFunction): void {
-    const key = `${req.ip}:${req.headers.authorization ?? "anonymous"}`;
+    const key = req.ip ?? "unknown";
     const now = Date.now();
     const windowStart = now - this.rateLimit.windowMs;
     this.pruneRequestLog(windowStart);

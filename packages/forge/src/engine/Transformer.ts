@@ -24,7 +24,7 @@ export class Transformer {
       if (template[i] === "{" && template[i + 1] === "{") {
         const closeIndex = template.indexOf("}}", i + 2);
         if (closeIndex === -1) {
-          i++;
+          i += 2;
           continue;
         }
 
