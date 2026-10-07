@@ -52,7 +52,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@modelcontextprotocol/sdk": "1.31.0",
     "jszip": "^3.10.1",
     "node-fetch": "^3.3.2",
     "pino": "^9.14.0",
