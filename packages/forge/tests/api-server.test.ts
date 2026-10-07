@@ -164,4 +164,17 @@ describe("ApiServer", () => {
       expect(body.error).toBe("Rate limit exceeded");
     });
   });
+
+  it("rate limits static UI file requests", async () => {
+    await withServer(async (baseUrl) => {
+      for (let i = 0; i < 50; i++) {
+        const response = await fetch(`${baseUrl}/assets/index.js`, { headers: AUTH_HEADERS });
+        expect([404, 200]).toContain(response.status);
+      }
+      const limited = await fetch(`${baseUrl}/assets/index.js`, { headers: AUTH_HEADERS });
+      expect(limited.status).toBe(429);
+      const body = await limited.json();
+      expect(body.error).toBe("Rate limit exceeded");
+    });
+  });
 });

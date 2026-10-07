@@ -151,15 +151,17 @@ export class ApiServer {
     this.app.use("/api", api);
 
     const uiPath = path.join(process.cwd(), "dist", "ui");
-    this.app.use(express.static(uiPath));
-
-    this.app.get("*", this.enforceRateLimit.bind(this), (_req, res) => {
+    const uiRouter = express.Router();
+    uiRouter.use(this.enforceRateLimit.bind(this));
+    uiRouter.use(express.static(uiPath));
+    uiRouter.get("*", (_req, res) => {
       res.sendFile(path.join(uiPath, "index.html"), (err) => {
         if (err) {
           res.status(404).send("UI not built yet");
         }
       });
     });
+    this.app.use(uiRouter);
 
     this.app.use(
       (err: Error & { type?: string }, _req: Request, res: Response, _next: NextFunction) => {
