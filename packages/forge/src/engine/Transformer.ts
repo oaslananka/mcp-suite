@@ -14,27 +14,30 @@ export class Transformer {
   }
 
   transform(template: string, context: Record<string, unknown>): unknown {
-    // Find {{ expression }} and evaluate
-    const regex = /\{\{(.*?)\}\}/g;
-
-    let match;
-    let lastIndex = 0;
     let resultString = "";
     let resultObject: unknown = null;
     let matchCount = 0;
+    let lastIndex = 0;
 
-    while ((match = regex.exec(template)) !== null) {
-      matchCount++;
-      const expression = match[1]!.trim();
-      const val = this.parseExpression(expression, context);
+    for (let i = 0; i < template.length; i++) {
+      if (template[i] === "{" && template[i + 1] === "{") {
+        const closeIndex = template.indexOf("}}", i + 2);
+        if (closeIndex === -1) {
+          continue;
+        }
 
-      // If the entire string is just one expression, we can return the object directly
-      if (match[0] === template) {
-        resultObject = val;
+        const expression = template.substring(i + 2, closeIndex).trim();
+        const val = this.parseExpression(expression, context);
+
+        if (matchCount === 0 && i === 0 && closeIndex === template.length - 2) {
+          resultObject = val;
+        }
+
+        resultString += template.substring(lastIndex, i) + String(val);
+        lastIndex = closeIndex + 2;
+        i = closeIndex + 1;
+        matchCount++;
       }
-
-      resultString += template.substring(lastIndex, match.index) + String(val);
-      lastIndex = regex.lastIndex;
     }
 
     if (matchCount === 1 && resultObject !== null) {
