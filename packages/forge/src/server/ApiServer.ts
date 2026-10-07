@@ -154,9 +154,43 @@ export class ApiServer {
     const uiRouter = express.Router();
 
     const enforceUiRateLimit = this.enforceRateLimit.bind(this);
-    uiRouter.use(enforceUiRateLimit);
-    uiRouter.use(express.static(uiPath));
-    uiRouter.get("*", (_req, res) => {
+
+    const rateLimitKey = Symbol("uiRateLimited");
+
+    const enforceUiRateLimitOnce = (
+      req: Request,
+      res: Response,
+      next: NextFunction
+    ): void => {
+      const reqWithFlag = req as unknown as Record<symbol, boolean>;
+      if (reqWithFlag[rateLimitKey]) {
+        next();
+        return;
+      }
+      enforceUiRateLimit(req, res, (err) => {
+        if (!err) {
+          reqWithFlag[rateLimitKey] = true;
+        }
+        next(err);
+      });
+    };
+
+    const staticWithRateLimit = (
+      req: Request,
+      res: Response,
+      next: NextFunction
+    ): void => {
+      enforceUiRateLimitOnce(req, res, (err) => {
+        if (err) {
+          next(err);
+          return;
+        }
+        express.static(uiPath)(req, res, next);
+      });
+    };
+
+    uiRouter.use(staticWithRateLimit);
+    uiRouter.get("*", enforceUiRateLimitOnce, (_req, res) => {
       res.sendFile(path.join(uiPath, "index.html"), (err) => {
         if (err) {
           res.status(404).send("UI not built yet");

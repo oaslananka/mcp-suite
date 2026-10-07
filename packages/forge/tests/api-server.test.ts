@@ -200,4 +200,21 @@ describe.sequential("ApiServer", () => {
       expect(body.error).toBe("Rate limit exceeded");
     });
   });
+
+  it("does not double-count requests that fall through static to catch-all", async () => {
+    await withServer(async (baseUrl) => {
+      for (let i = 0; i < 50; i++) {
+        const response = await fetch(`${baseUrl}/nonexistent-path`, {
+          headers: AUTH_HEADERS,
+        });
+        expect([200, 404]).toContain(response.status);
+      }
+      const limited = await fetch(`${baseUrl}/another-missing-path`, {
+        headers: AUTH_HEADERS,
+      });
+      expect(limited.status).toBe(429);
+      const body = await limited.json();
+      expect(body.error).toBe("Rate limit exceeded");
+    });
+  });
 });
