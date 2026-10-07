@@ -37,7 +37,7 @@ merge_protections_settings:
     - -label = security
     - -label = type:security
     - '-files ~= ^\.github/'
-    - '-files ~= ^Dockerfile$'
+    - "-files ~= ^Dockerfile$"
     - '-files ~= (^|/)docker-compose(?:\.[^.]+)?\.ya?ml$'
     - '-files ~= ^\.mergify\.ya?ml$'
 

@@ -95,8 +95,11 @@ least-privilege workflow permissions and follow this policy exactly.
 ## Pull Request Review Policy
 
 Pull requests must pass required checks before merge. Required human reviews are
-treated as an external dependency for automation agents; agents may enable
-auto-merge but must not bypass branch protection.
+treated as an external dependency for automation agents. Renovate produces
+dependency and vulnerability-remediation PRs with `automerge: false`; Mergify is
+the queue/merge authority evaluating `merge_protections_settings.auto_merge_conditions`
+and `merge_protections` for low-risk dependency safety. Agents may enable native
+auto-merge for non-Renovate PRs but must not bypass branch protection.
 
 PR descriptions should include the problem, solution, verification evidence, and
 linked issues using `Closes #<number>` when merge should close the issue.

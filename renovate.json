@@ -9,65 +9,35 @@
   "packageRules": [
     {
       "description": "Delegate low-risk dependency merging to Mergify.",
-      "matchUpdateTypes": [
-        "patch",
-        "digest",
-        "pin"
-      ],
+      "matchUpdateTypes": ["patch", "digest", "pin"],
       "automerge": false,
-      "addLabels": [
-        "automerge:enabled",
-        "risk:low"
-      ]
+      "addLabels": ["automerge:enabled", "risk:low"]
     },
     {
       "description": "Preserve the existing non-breaking minor-update automation through Mergify.",
-      "matchUpdateTypes": [
-        "minor"
-      ],
+      "matchUpdateTypes": ["minor"],
       "automerge": false,
-      "addLabels": [
-        "automerge:enabled",
-        "risk:low"
-      ]
+      "addLabels": ["automerge:enabled", "risk:low"]
     },
     {
-      "matchPackageNames": [
-        "/^@opentelemetry\\//"
-      ],
+      "matchPackageNames": ["/^@opentelemetry\\//"],
       "groupName": "OpenTelemetry packages",
       "automerge": false,
-      "addLabels": [
-        "automerge:enabled",
-        "risk:low"
-      ]
+      "addLabels": ["automerge:enabled", "risk:low"]
     },
     {
-      "matchPackageNames": [
-        "/^@types\\//"
-      ],
+      "matchPackageNames": ["/^@types\\//"],
       "groupName": "DefinitelyTyped packages",
       "automerge": false,
-      "addLabels": [
-        "automerge:enabled",
-        "risk:low"
-      ]
+      "addLabels": ["automerge:enabled", "risk:low"]
     },
     {
-      "matchDepTypes": [
-        "devDependencies"
-      ],
+      "matchDepTypes": ["devDependencies"],
       "automerge": false,
-      "addLabels": [
-        "automerge:enabled",
-        "risk:low"
-      ]
+      "addLabels": ["automerge:enabled", "risk:low"]
     }
   ],
-  "ignorePaths": [
-    "**/node_modules/**",
-    "**/dist/**"
-  ],
+  "ignorePaths": ["**/node_modules/**", "**/dist/**"],
   "timezone": "Europe/Istanbul",
   "dependencyDashboard": true,
   "automerge": false,
@@ -76,12 +46,7 @@
   "osvVulnerabilityAlerts": false,
   "vulnerabilityAlerts": {
     "enabled": true,
-    "labels": [
-      "dependencies",
-      "security",
-      "risk:high",
-      "requires-review"
-    ],
+    "labels": ["dependencies", "security", "risk:high", "requires-review"],
     "prCreation": "immediate",
     "vulnerabilityFixStrategy": "highest"
   }
