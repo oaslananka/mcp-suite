@@ -13,14 +13,14 @@ The repository uses one primary gate per concern so overlapping scanners do not 
 | Coverage and test analytics | Required LCOV patch gate and Codecov                      | Deterministic merge gate; Codecov remains project/test analytics                      |
 | Code quality                | ESLint, TypeScript, and SonarQube Cloud                   | Native checks block; Sonar manages new-code quality and technical debt                |
 | Workflow security           | actionlint and zizmor                                     | Gitleaks runs in the same workflow-security job                                       |
-| Merge automation            | GitHub ruleset and native auto-merge                      | Squash-only; external merge orchestration is not installed                            |
+| Merge automation            | Mergify queue + GitHub ruleset                            | Squash-only serial queue; Mergify is the sole merge authority for Renovate PRs        |
 | Release automation          | release-please                                            | Independent component versions and tags                                               |
 | OCI supply chain            | SHA pinning, OIDC, Cosign, and GitHub attestations        | No long-lived signing or registry credentials                                         |
 | npm supply chain            | release-please, OIDC trusted publishing, and attestations | One-time bootstrap token only; checksums, clean installs, and signatures are verified |
 
 ## Recommended Repository Settings
 
-The `main-ci-solo-maintainer` ruleset is designed for a solo maintainer: pull requests are mandatory, approving reviews are not required, review conversations must be resolved, history stays linear, and branch deletion or force-push is blocked. Only squash merge is enabled at repository level; native auto-merge remains available. A merge queue is intentionally not enabled while repository traffic is low.
+The `main-ci-solo-maintainer` ruleset is designed for a solo maintainer: pull requests are mandatory, approving reviews are not required, review conversations must be resolved, history stays linear, and branch deletion or force-push is blocked. Only squash merge is enabled at repository level. Mergify provides a serial merge queue for Renovate-generated dependency PRs; native auto-merge remains available for other PRs. Mergify evaluates `merge_protections_settings.auto_merge_conditions` and `merge_protections` to enforce low-risk dependency safety gates.
 
 Protected `main` required check-run names:
 
