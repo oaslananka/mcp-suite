@@ -18,7 +18,8 @@
     "packages/bridge": {},
     "packages/observatory": {},
     "apps/lab": {
-      "entry": ["src/preload/index.ts", "electron-builder.config.ts", "electron.vite.config.ts"]
+      "entry": ["src/preload/index.ts", "electron-builder.config.ts", "electron.vite.config.ts"],
+      "ignoreBinaries": ["where.exe"]
     }
   },
   "ignoreExportsUsedInFile": true

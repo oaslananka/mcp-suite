@@ -32,7 +32,8 @@ FROM node@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbf
 
 LABEL org.opencontainers.image.source="https://github.com/oaslananka/mcp-suite"
 
-RUN apk add --no-cache dumb-init procps wget && \
+RUN apk upgrade --no-cache libcrypto3 libssl3 && \
+    apk add --no-cache dumb-init procps wget && \
     rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack && \
     rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/pnpm /usr/local/bin/pnpx
 WORKDIR /app
