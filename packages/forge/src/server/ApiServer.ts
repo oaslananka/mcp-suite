@@ -64,8 +64,8 @@ export class ApiServer {
 
   private setupRoutes(): void {
     const api = express.Router();
-    api.use(this.authenticate.bind(this));
     api.use(this.enforceRateLimit.bind(this));
+    api.use(this.authenticate.bind(this));
 
     this.app.get("/health", (_req: Request, res: Response) => {
       res.json({ status: "ok" });
@@ -151,15 +151,53 @@ export class ApiServer {
     this.app.use("/api", api);
 
     const uiPath = path.join(process.cwd(), "dist", "ui");
-    this.app.use(express.static(uiPath));
+    const uiRouter = express.Router();
 
-    this.app.get("*", (_req, res) => {
+    const enforceUiRateLimit = this.enforceRateLimit.bind(this);
+
+    const rateLimitKey = Symbol("uiRateLimited");
+
+    const enforceUiRateLimitOnce = (
+      req: Request,
+      res: Response,
+      next: NextFunction
+    ): void => {
+      const reqWithFlag = req as unknown as Record<symbol, boolean>;
+      if (reqWithFlag[rateLimitKey]) {
+        next();
+        return;
+      }
+      enforceUiRateLimit(req, res, (err) => {
+        if (!err) {
+          reqWithFlag[rateLimitKey] = true;
+        }
+        next(err);
+      });
+    };
+
+    const staticWithRateLimit = (
+      req: Request,
+      res: Response,
+      next: NextFunction
+    ): void => {
+      enforceUiRateLimitOnce(req, res, (err) => {
+        if (err) {
+          next(err);
+          return;
+        }
+        express.static(uiPath)(req, res, next);
+      });
+    };
+
+    uiRouter.use(staticWithRateLimit);
+    uiRouter.get("*", enforceUiRateLimitOnce, (_req, res) => {
       res.sendFile(path.join(uiPath, "index.html"), (err) => {
         if (err) {
           res.status(404).send("UI not built yet");
         }
       });
     });
+    this.app.use(uiRouter);
 
     this.app.use(
       (err: Error & { type?: string }, _req: Request, res: Response, _next: NextFunction) => {
@@ -221,7 +259,7 @@ export class ApiServer {
   }
 
   private enforceRateLimit(req: Request, res: Response, next: NextFunction): void {
-    const key = `${req.ip}:${req.headers.authorization ?? "anonymous"}`;
+    const key = req.ip ?? "unknown";
     const now = Date.now();
     const windowStart = now - this.rateLimit.windowMs;
     this.pruneRequestLog(windowStart);
