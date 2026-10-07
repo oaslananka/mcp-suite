@@ -60,12 +60,12 @@ export class ApiServer {
       })
     );
     this.app.use(express.json({ limit: this.jsonBodyLimit }));
+    this.app.use(this.enforceRateLimit.bind(this));
   }
 
   private setupRoutes(): void {
     const api = express.Router();
     api.use(this.authenticate.bind(this));
-    api.use(this.enforceRateLimit.bind(this));
 
     this.app.get("/health", (_req: Request, res: Response) => {
       res.json({ status: "ok" });
@@ -152,7 +152,6 @@ export class ApiServer {
 
     const uiPath = path.join(process.cwd(), "dist", "ui");
     const uiRouter = express.Router();
-    uiRouter.use(this.enforceRateLimit.bind(this));
     uiRouter.use(express.static(uiPath));
     uiRouter.get("*", (_req, res) => {
       res.sendFile(path.join(uiPath, "index.html"), (err) => {

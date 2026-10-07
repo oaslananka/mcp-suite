@@ -42,4 +42,18 @@ describe("Transformer", () => {
     const result = transformer.transform("{{ a }} and {{ b }}", ctx);
     expect(result).toBe("1 and 2");
   });
+
+  it("handles unclosed expression braces gracefully", () => {
+    const transformer = new Transformer();
+    const ctx = { user: "Alice" };
+    const result = transformer.transform("Hello {{ user", ctx);
+    expect(result).toBe("Hello {{ user");
+  });
+
+  it("handles mixed closed and unclosed expressions", () => {
+    const transformer = new Transformer();
+    const ctx = { a: 1, b: 2 };
+    const result = transformer.transform("{{ a }} and {{ b", ctx);
+    expect(result).toBe("1 and {{ b");
+  });
 });
